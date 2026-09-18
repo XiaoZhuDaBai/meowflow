@@ -19,7 +19,7 @@
 ### 前置要求
 
 - JDK 17+
-- Node.js 18+
+- Node.js 22+（前端测试依赖 jsdom 30，需要较新的 V8；Node 20 会在 vitest 阶段报错）
 - PostgreSQL 13+
 - Redis 6+
 - RabbitMQ 3.8+
@@ -28,12 +28,13 @@
 
 ```bash
 # 1. 克隆代码
-git clone https://github.com/your-org/meowflow.git
+git clone https://github.com/XiaoZhuDaBai/meowflow.git
 cd meowflow
 
-# 2. 启动后端
+# 2. 构建后端（Maven 工程位于 backend/meowflow，不是仓库根目录）
 cd backend/meowflow
-./mvnw spring-boot:run
+mvn clean install -DskipTests
+mvn -pl meowflow-workflow spring-boot:run   # 或按需启动其它模块
 
 # 3. 启动前端
 cd frontend/meowflow-ui
@@ -41,20 +42,57 @@ npm install
 npm run dev
 ```
 
+> **Nacos 开关**：`meowflow-workflow` 等服务默认 `NACOS_ENABLED=false`。
+> 若通过网关（8080）访问，必须显式开启，否则网关拿不到实例会返回 503：
+> `mvn -pl meowflow-workflow spring-boot:run -Dspring-boot.run.jvmArguments=-DNACOS_ENABLED=true`
+
+### 数据库
+
+表结构由 **Flyway 自动迁移**，无需手工建表。迁移脚本位于
+`backend/meowflow/meowflow-common/src/main/resources/db/migration`，
+配置在 `common-defaults.yml`。新建一个空库即可，启动时自动建出全部表。
+
+```sql
+CREATE DATABASE meowflow OWNER meowflow;
+```
+
+连接参数通过环境变量覆盖（默认值见 `deploy/docker/.env`）：
+
+```
+POSTGRES_HOST / POSTGRES_PORT / POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD
+```
+
+#### 存量数据库（已被手工建过表）
+
+如果数据库里的表是用 `scripts/sql` 手工建的、**没有 `flyway_schema_history` 表**，
+Flyway 会把它当作空库并从头执行 `V1__init_schema.sql`，从而报
+`relation "xxx" already exists`。此时给该库补一条基线记录即可（版本取已应用的最高迁移号，
+当前最高为 22）：
+
+```sql
+INSERT INTO flyway_schema_history
+  (installed_rank, version, description, type, script, checksum, installed_by, installed_on, execution_time, success)
+VALUES
+  (1, '22', '<< Flyway Baseline >>', 'BASELINE', '<< Flyway Baseline >>', NULL, 'meowflow', now(), 0, true);
+```
+
+之后启动会看到 `Schema "public" is up to date. No migration necessary.`。
+**全新部署不需要这一步。**
+
 ### Docker 部署
 
 ```bash
-# 使用 Docker Compose 一键启动
-docker-compose -f docker/docker-compose.yml up -d
+docker compose -f backend/meowflow/deploy/docker/docker-compose.dev.yml up -d
 ```
 
 ## 技术栈
 
 ### 后端
-- Java 18+
-- Spring Boot 3.x
+- Java 17
+- Spring Boot 3.2
 - Spring Cloud Alibaba
 - MyBatis-Plus
+- Flyway（数据库迁移）
 - PostgreSQL
 - Redis
 - RabbitMQ
@@ -125,13 +163,37 @@ docker-compose -f docker/docker-compose.yml up -d
 
 ## 部署脚本
 
-数据库初始化脚本见 [scripts/sql/](./scripts/sql/README.md)。
+数据库迁移由 Flyway 自动完成，`scripts/sql` 中的脚本仅作参考 / 手工初始化用，
+见 [scripts/sql/](./scripts/sql/README.md)。
 
 ```bash
 cd scripts/sql
-./apply.sh            # 一键初始化(默认连 localhost postgres)
-psql -d meowflow -f reset.sql   # 清空业务表(仅本地)
+./apply.sh                       # 手工初始化(默认连 localhost postgres)
+psql -d meowflow -f reset.sql    # 清空业务表(仅本地)
 ```
+
+## 测试
+
+```bash
+# 后端：单元 + 集成测试（需要 PostgreSQL / Redis）
+cd backend/meowflow
+mvn test
+
+# 覆盖率报告
+mvn org.jacoco:jacoco-maven-plugin:0.8.11:report
+
+# 覆盖率门禁（LINE 65% / BRANCH 50%）
+mvn verify -Pjacoco-gate
+
+# 前端：类型检查 + 单元测试 + 构建
+cd frontend/meowflow-ui
+npx vue-tsc --noEmit
+npm run test
+npm run build
+```
+
+CI 配置见 [.github/workflows/ci.yml](./.github/workflows/ci.yml)：
+`backend`（PG + Redis service）、`frontend`、`package` 三个 job。
 
 ## 文档
 
