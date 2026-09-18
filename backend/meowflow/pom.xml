@@ -27,6 +27,7 @@
         <knife4j.version>4.3.0</knife4j.version>
         <transmittable-thread-local.version>2.14.5</transmittable-thread-local.version>
         <lombok.version>1.18.34</lombok.version>
+        <jacoco.version>0.8.11</jacoco.version>
     </properties>
 
     <modules>
@@ -322,6 +323,32 @@
                     <execution>
                         <goals>
                             <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <!-- 绑定 prepare-agent：让 surefire 带上 jacoco agent，产出 jacoco.exec。
+                         此前 jacoco 只作为 agent 依赖存在、从未作为构建插件接入，
+                         导致 jacoco.exec 永远不生成，`mvn jacoco:report` 因前缀无法解析而失败，
+                         jacoco-gate 门禁也形同虚设。 -->
+                    <execution>
+                        <id>prepare-agent</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <!-- test 阶段产出报告，便于 CI 直接上传，也让 verify 阶段的门禁有数据可查 -->
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
                         </goals>
                     </execution>
                 </executions>
