@@ -6,6 +6,15 @@ spring:
     baseline-version: 0
     validate-on-migrate: true
     clean-disabled: true
+    # Flyway 默认用 ${...} 作为占位符。但迁移脚本里内嵌的是工作流模板定义
+    # （V22__backfill_builtin_template_definitions.sql 中的 ${input.summary.text}
+    # 等），会被 Flyway 误当成自己的变量去解析并直接抛
+    # "No value provided for placeholder" —— 导致全新数据库上整个迁移失败、
+    # 业务表一张都建不出来（历史上靠 scripts/sql 手工建库 + baseline-on-migrate
+    # 跳过了该脚本，所以问题一直没暴露）。
+    # 这里换成不会与模板语法冲突的前缀。
+    placeholder-prefix: '$FLYWAY{'
+    placeholder-suffix: '}'
 
 # ==========================================
 # Actuator 健康检查配置

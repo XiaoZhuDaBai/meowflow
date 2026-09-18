@@ -35,6 +35,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+
+        <!--
+          Flyway 数据库迁移。
+          迁移脚本位于本模块 src/main/resources/db/migration，common-defaults.yml 里
+          也声明了 spring.flyway.enabled=true / locations=classpath:db/migration。
+          但此前 flyway-core 只在 meowflow-monitor 声明，导致其它服务与所有模块的测试
+          都「配置在、类不在」—— 迁移从不执行：全新数据库上建不出任何业务表
+          （relation "mf_xxx" does not exist），只有历史上用 scripts/sql 手工建过库的
+          环境才能跑通。这里放到 common，让所有依赖它的服务统一继承。
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
         
         <dependency>
             <groupId>com.alibaba</groupId>

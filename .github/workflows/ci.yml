@@ -22,7 +22,10 @@ on:
 
 env:
   JAVA_VERSION: '17'
-  NODE_VERSION: '20'
+  # 必须是 22：jsdom@30 依赖较新 V8 提供的 webidl.util.markAsUncloneable，
+  # Node 20 上会抛 "TypeError: webidl.util.markAsUncloneable is not a function"，
+  # vitest 报 unhandled error 并以 exit 1 结束（测试本身其实通过）。
+  NODE_VERSION: '22'
 
 jobs:
   # ============================================================
