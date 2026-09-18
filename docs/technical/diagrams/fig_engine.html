@@ -1,0 +1,111 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;color:#2b2b2b}
+.zone{position:absolute;border-radius:14px;z-index:1}
+.zonehead{position:absolute;z-index:2;color:#fff;font-weight:700;font-size:15.5px;display:flex;align-items:center;padding-left:13px;letter-spacing:.5px;border-radius:12px 12px 0 0}
+.box{position:absolute;background:#fff;border:1.5px solid #c9ccd1;border-radius:9px;padding:7px 9px;font-size:12.2px;line-height:1.5;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.box .bt{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.box.dash{border-style:dashed;background:#fcfcfc}
+.box .ln{padding-left:2px}
+.hb{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:800;color:#37474f;background:#fff}
+.ah{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:700;color:#fff}
+svg{position:absolute;left:0;top:0;width:'+W+'px;height:'+H+'px;z-index:5;pointer-events:none}
+.ph{position:absolute;border-radius:8px;color:#fff;text-align:center;padding:5px 3px;font-size:12px;line-height:1.35;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ph b{display:block;font-size:13.5px}
+.life{position:absolute;border-left:1.5px dashed #c3c9cf;z-index:1}
+.msg{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e5e9;border-radius:9px;font-size:11.8px;padding:1px 6px;text-align:center;z-index:4;box-shadow:0 1px 2px rgba(0,0,0,.07);white-space:nowrap}
+.num{position:absolute;width:19px;height:19px;border-radius:50%;background:#455a64;color:#fff;font-size:11.5px;text-align:center;line-height:19px;z-index:6;font-weight:700}
+.leg{position:absolute;font-size:12.6px;line-height:19px;color:#333}
+.leg b.n{display:inline-block;width:26px;color:#455a64}
+</style></head><body><div style="position:relative;width:'+W+'px;height:'+H+'px">
+<div style="position:absolute;left:0;top:12px;width:2100px;text-align:center"><div style="font-size:28px;font-weight:800;color:#263238">① 工作流编排引擎 —— 独立全景图</div><div style="font-size:13.5px;color:#777;margin-top:3px">定义/编译 → WorkflowEngine 调度内核 → NodeRegistry 执行器族 → Loop 子图 → 事件/持久化/分布式（据 meowflow-workflow + meowflow-executor 源码）</div></div>
+<div class="zone" data-name="zA" style="left:40px;top:150px;width:960px;height:332px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="zAH" style="left:40px;top:150px;width:960px;height:30px;background:#ef6c00">定义 · 入口 · 触发</div>
+<div class="zone" data-name="zB" style="left:1020px;top:150px;width:1020px;height:332px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="zBH" style="left:1020px;top:150px;width:1020px;height:30px;background:#ef6c00">WorkflowEngine 调度内核（主循环）</div>
+<div class="zone" data-name="zC" style="left:40px;top:500px;width:2000px;height:258px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="zCH" style="left:40px;top:500px;width:2000px;height:30px;background:#ef6c00">NodeRegistry 与节点执行器族</div>
+<div class="zone" data-name="zD" style="left:40px;top:780px;width:650px;height:398px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="zDH" style="left:40px;top:780px;width:650px;height:30px;background:#ef6c00">循环与子图</div>
+<div class="zone" data-name="zE" style="left:710px;top:780px;width:650px;height:398px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="zEH" style="left:710px;top:780px;width:650px;height:30px;background:#ef6c00">事件 / 可观测</div>
+<div class="zone" data-name="zF" style="left:1380px;top:780px;width:660px;height:398px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="zFH" style="left:1380px;top:780px;width:660px;height:30px;background:#ef6c00">持久化 / 配置 / 分布式(可选)</div>
+<div class="box " data-name="A1" style="left:54px;top:196px;width:448px;height:120px"><span class="bt">定义模型 definition</span><div class="ln">WorkflowDefinition{节点+边+触发器}</div><div class="ln">NodeDefinition{id/type/data/config(两级参数)}</div><div class="ln">NodeType 37 种(含 NOTE) + 前端别名表(ai.llm/condition.if…)</div><div class="ln">Edge/EdgeType: DEFAULT/CONDITION/…/ERROR</div></div>
+<div class="box " data-name="A2" style="left:522px;top:196px;width:464px;height:120px"><span class="bt">版本 / 发布 / 导入导出</span><div class="ln">WorkflowVersion 多版本+自动递增</div><div class="ln">publish 时 compileAndValidate 缓存 DAG</div><div class="ln">环检测 DAGSorter.hasCycle → 可读报错</div><div class="ln">DifyWorkflowImporter(Dify DSL) / JSON 导入导出</div></div>
+<div class="box " data-name="A3" style="left:54px;top:334px;width:448px;height:132px"><span class="bt">执行入口 ExecutionService</span><div class="ln">ExecutionController · ChatflowController</div><div class="ln">execute: 校验 running + 版本 → Execution(pending)</div><div class="ln">async=true: 自代理 @Async(workflowExecutorPool)</div><div class="ln">@Transactional 状态落库 updateExecutionFromResult</div></div>
+<div class="box " data-name="A4" style="left:522px;top:334px;width:464px;height:132px"><span class="bt">触发器群 trigger</span><div class="ln">Manual · Webhook(签名校验) · Cron(Redis wf:schedule)</div><div class="ln">Form · Message(IM 消息) · Plugin</div><div class="ln">HumanInput 人工审批(挂起/提交)</div><div class="ln">触发结果作为 ctx.input 进入首个节点</div></div>
+<div class="box " data-name="B1" style="left:1034px;top:196px;width:480px;height:120px"><span class="bt">拓扑与就绪</span><div class="ln">getOrComputeDAG: dagCache key=wfId:version</div><div class="ln">Kahn 拓扑排序 + 环检测</div><div class="ln">computeInDegrees 静态入度</div><div class="ln">触发器节点全部入 readyQueue</div></div>
+<div class="box " data-name="B2" style="left:1534px;top:196px;width:492px;height:120px"><span class="bt">主循环：并行批次</span><div class="ln">每轮取就绪节点 batch≤64</div><div class="ln">parallelEnabled → executeBatchInParallel</div><div class="ln">CompletableFuture.allOf + 专用线程池</div><div class="ln">失败不阻塞同批节点(各自推进)</div></div>
+<div class="box " data-name="B3" style="left:1034px;top:334px;width:480px;height:132px"><span class="bt">单节点质量保障</span><div class="ln">executeNodeWithTimeout: orTimeout(节点超时)</div><div class="ln">重试 resolveRetries≤10 · 500ms*attempt 退避</div><div class="ln">applyFallbackOnError: fallbackValue/onError</div><div class="ln">CancellationToken 50ms 轮询取消 + 指标</div></div>
+<div class="box " data-name="B4" style="left:1534px;top:334px;width:492px;height:132px"><span class="bt">边路由与 JOIN</span><div class="ln">EdgeRouter: ERROR/条件边/默认边路由</div><div class="ln">选中才放行 → 条件未命中不卡死</div><div class="ln">JOIN: isJoinReady(ALL/ANY/N_OF_M)</div><div class="ln">handleFailedNode: 失败仅走 ERROR 边/截断</div></div>
+<div class="box " data-name="C1" style="left:54px;top:546px;width:470px;height:196px"><span class="bt">NodeRegistry + 执行框架</span><div class="ln">自动注册: 所有 NodeExecutor Bean → EnumMap</div><div class="ln">NodeExecutor: execute / executeAsync(默认同步包装)</div><div class="ln">AbstractNodeExecutor: 合并 data+config → resolveMap</div><div class="ln">输出注入 _nodeId/_nodeName · 统一异常→NodeResult</div><div class="ln">节点失败封装为 NodeResult.failed 继续调度</div></div>
+<div class="box " data-name="C2" style="left:544px;top:546px;width:1482px;height:196px"><span class="bt">执行器族(30+ 业务节点，按 NodeType)</span><div class="ln">触发: manual / webhook / cron / form / message / plugin</div><div class="ln">AI: llm · classify · extract · summarize · agent · parameter_extractor · question_classifier</div><div class="ln">流程: condition · if · switch · branch · fork · join · loop(子图) · wait · aggregator</div><div class="ln">数据/集成: code · transform · list_operator · set_variable · http · db · document_extractor · sub_workflow · knowledge_search →②RAG · tool(MCP) →④Agent</div><div class="ln">通知/收尾: notify(钉钉/企微/飞书/邮件/短信) · end · answer · set_variable · human_input · note(纯 UI 标注)</div></div>
+<div class="box " data-name="D1" style="left:54px;top:826px;width:622px;height:338px"><span class="bt">LoopSubgraphDriver（LOOP = 子图执行器）</span><div class="ln">LoopCursor 迭代状态存 ctx.loopCursors(可快照)</div><div class="ln">parseItems: 数组/数字迭代量</div><div class="ln">buildSubgraph: config.subgraph(内嵌) 或 subgraphNodes(引用)</div><div class="ln">每轮: 子作用域 ExecutionContext + ready-queue 驱动</div><div class="ln">执行集合: EdgeRouter·Recorder·CancellationRegistry</div><div class="ln">退出: items 完/maxIterations(100)/maxDuration(300s)</div><div class="ln">loop_exit=true 提前退出 · errorMode abort|continue</div><div class="ln">结果: LoopExecutionResult{iterations,exitReason,…}</div></div>
+<div class="box " data-name="E1" style="left:724px;top:826px;width:622px;height:338px"><span class="bt">事件流 + 指标 + 取消</span><div class="ln">RunEventSink 接口 → RedisStreamEventSink / Noop</div><div class="ln">RunEvent: executionStarted · nodeStarted · nodeFinished</div><div class="ln">nodeRetrying · nodeStreamDelta(LLM 流式) · executionSucceeded</div><div class="ln">前端: ExecutionStreamController(SSE) 订阅实时</div><div class="ln">Micrometer: workflow_execution_total</div><div class="ln">workflow_node_duration_seconds · workflow_node_inflight</div><div class="ln">CancellationRegistry + CancellationToken(common)</div><div class="ln">AOP: AI 调用日志 / TraceContext 贯穿</div></div>
+<div class="box " data-name="F1" style="left:1394px;top:826px;width:632px;height:338px"><span class="bt">持久化 / 配置 / 分布式</span><div class="ln">Execution: pending→running→success/failed/cancelled</div><div class="ln">字段: input/output/error/costMs/costToken/costAmount</div><div class="ln">NodeExecution: 每节点状态/耗时/输出</div><div class="ln">ExecutionSnapshot: 快照(为断点恢复留口)</div><div class="ln">HumanTaskService 联动取消</div><div class="ln">配置 workflow.engine: maxConcurrent=20 · nodeTimeout=300s</div><div class="ln">retryMaxAttempts=3 · 池大小 · parallel.enabled</div><div class="ln">meowflow-executor(虚线): TaskProducer→RabbitMQ</div><div class="ln">task.queue/DLQ/延迟(x-delay) · 手动ACK+退避</div></div>
+<div class="ah" style="top:104px;height:28px;background:#ef6c00">架构视图</div>
+<div class="ah" style="top:1196px;height:28px;background:#546e7a">核心时序 ① —— 一次发布运行的生命周期（编号箭头，底部有步骤说明）</div>
+<div class="ph" style="left:70px;top:1260px;width:200px;height:64px;background:#546e7a"><b>前端/调用方</b>运行·Chatflow·Webhook</div>
+<div class="life" style="left:170px;top:1318px;height:720px"></div>
+<div class="ph" style="left:365px;top:1260px;width:190px;height:64px;background:#ef6c00"><b>ExecutionService/Trigger</b>入口</div>
+<div class="life" style="left:460px;top:1318px;height:720px"></div>
+<div class="ph" style="left:650px;top:1260px;width:200px;height:64px;background:#ef6c00"><b>WorkflowEngine</b>调度内核</div>
+<div class="life" style="left:750px;top:1318px;height:720px"></div>
+<div class="ph" style="left:940px;top:1260px;width:200px;height:64px;background:#f57c00"><b>节点执行器</b>NodeExecutor</div>
+<div class="life" style="left:1040px;top:1318px;height:720px"></div>
+<div class="ph" style="left:1230px;top:1260px;width:200px;height:64px;background:#e65100"><b>LoopSubgraphDriver</b>循环子图</div>
+<div class="life" style="left:1330px;top:1318px;height:720px"></div>
+<div class="ph" style="left:1520px;top:1260px;width:200px;height:64px;background:#6d4c41"><b>RunEventSink/SSE</b>RedisStream 事件</div>
+<div class="life" style="left:1620px;top:1318px;height:720px"></div>
+<div class="ph" style="left:1815px;top:1260px;width:190px;height:64px;background:#546e7a"><b>Execution 持久化</b>PostgreSQL/MyBatis-Plus</div>
+<div class="life" style="left:1910px;top:1318px;height:720px"></div>
+<div class="msg" style="left:315px;top:1350px">1. 发起执行(async)</div>
+<div class="num" style="left:159px;top:1340px">1</div>
+<div class="msg" style="left:1185px;top:1397px">2. 建 Execution(pending)</div>
+<div class="num" style="left:449px;top:1387px">2</div>
+<div class="msg" style="left:605px;top:1444px">3. execute(ctx)</div>
+<div class="num" style="left:449px;top:1434px">3</div>
+<div class="msg" style="left:912px;top:1491px">4. DAG/入度/就绪</div>
+<div class="num" style="left:771px;top:1481px">4</div>
+<div class="msg" style="left:895px;top:1538px">5. 批次执行(≤64)</div>
+<div class="num" style="left:739px;top:1528px">5</div>
+<div class="msg" style="left:1202px;top:1585px">6. resolve+doExecute</div>
+<div class="num" style="left:1061px;top:1575px">6</div>
+<div class="msg" style="left:1330px;top:1632px">7. 事件+指标</div>
+<div class="num" style="left:1029px;top:1622px">7</div>
+<div class="msg" style="left:912px;top:1679px">8. 边路由/JOIN</div>
+<div class="num" style="left:771px;top:1669px">8</div>
+<div class="msg" style="left:1040px;top:1726px">9. 循环子图</div>
+<div class="num" style="left:739px;top:1716px">9</div>
+<div class="msg" style="left:1475px;top:1773px">10. 节点落库</div>
+<div class="num" style="left:1029px;top:1763px">10</div>
+<div class="msg" style="left:912px;top:1820px">11. 失败处理</div>
+<div class="num" style="left:771px;top:1810px">11</div>
+<div class="msg" style="left:912px;top:1867px">12. End 汇总</div>
+<div class="num" style="left:771px;top:1857px">12</div>
+<div class="msg" style="left:605px;top:1914px">13. ExecutionResult</div>
+<div class="num" style="left:739px;top:1904px">13</div>
+<div class="msg" style="left:1185px;top:1961px">14. 更新 Execution</div>
+<div class="num" style="left:449px;top:1951px">14</div>
+<div class="msg" style="left:895px;top:2008px">15. 事件→实时</div>
+<div class="num" style="left:1609px;top:1998px">15</div>
+<svg viewBox="0 0 2100 2360"><defs><marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#455a64"/></marker><marker id="ard" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#78909c"/></marker><path d="M 920 334 L 1034 334" fill="none" stroke="#455a64" stroke-width="2"  marker-end="url(#ar)"/><path d="M 280 466 L 280 544" fill="none" stroke="#455a64" stroke-width="2"  marker-end="url(#ar)"/><path d="M 170 1350 L 460 1350" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 460 1397 L 1910 1397" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 460 1444 L 750 1444" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 776 1491 L 850 1491" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 750 1538 L 1040 1538" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1066 1585 L 1140 1585" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1040 1632 L 1620 1632" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 776 1679 L 850 1679" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 750 1726 L 1330 1726" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1040 1773 L 1910 1773" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 776 1820 L 850 1820" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 776 1867 L 850 1867" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 750 1914 L 460 1914" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 460 1961 L 1910 1961" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1620 2008 L 170 2008" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/></svg>
+<div style="position:absolute;left:40px;top:2080px;width:2020px;height:236px;border:1.5px solid #d0d3d8;border-radius:12px;background:#fafbfc"></div>
+<div style="position:absolute;left:58px;top:2090px;font-size:14.5px;font-weight:800;color:#37474f">核心时序步骤说明（实线=调用/请求，虚线=返回/响应）</div>
+<div class="leg" style="left:58px;top:2114px;width:986px"><b class="n">1.</b> 外部发起执行请求(async 异步 / Chatflow / Webhook-Cron-IM)</div>
+<div class="leg" style="left:1050px;top:2114px;width:986px"><b class="n">2.</b> 入口写 Execution(pending) 并切 @Async 线程池</div>
+<div class="leg" style="left:58px;top:2136px;width:986px"><b class="n">3.</b> 引擎 execute(ctx)+取消令牌注册</div>
+<div class="leg" style="left:1050px;top:2136px;width:986px"><b class="n">4.</b> DAG 缓存/拓扑 → 入度 → 触发器入队</div>
+<div class="leg" style="left:58px;top:2158px;width:986px"><b class="n">5.</b> 就绪批次 ≤64 并行执行节点</div>
+<div class="leg" style="left:1050px;top:2158px;width:986px"><b class="n">6.</b> 节点合并参数/解析变量 → doExecute</div>
+<div class="leg" style="left:58px;top:2180px;width:986px"><b class="n">7.</b> 节点事件+指标+可选 SSE 流式</div>
+<div class="leg" style="left:1050px;top:2180px;width:986px"><b class="n">8.</b> 边路由+放行推进(未命中不卡死)+JOIN</div>
+<div class="leg" style="left:58px;top:2202px;width:986px"><b class="n">9.</b> LOOP 子图按轮重执行</div>
+<div class="leg" style="left:1050px;top:2202px;width:986px"><b class="n">10.</b> 节点执行结果持久化</div>
+<div class="leg" style="left:58px;top:2224px;width:986px"><b class="n">11.</b> 失败→重试→兜底→取消/ERROR 边截断</div>
+<div class="leg" style="left:1050px;top:2224px;width:986px"><b class="n">12.</b> End/Answer 输出汇总+SKIPPED 兜底</div>
+<div class="leg" style="left:58px;top:2246px;width:986px"><b class="n">13.</b> 返回 ExecutionResult</div>
+<div class="leg" style="left:1050px;top:2246px;width:986px"><b class="n">14.</b> 主记录状态/成本落库+HumanTask 联动</div>
+<div class="leg" style="left:58px;top:2268px;width:986px"><b class="n">15.</b> RedisStream 事件 → 前端实时展示</div>
+</div></body></html>

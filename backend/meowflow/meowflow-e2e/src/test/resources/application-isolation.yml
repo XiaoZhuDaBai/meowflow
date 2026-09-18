@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: ${E2E_POSTGRES_URL:jdbc:postgresql://localhost:5432/meowflow}
+    username: ${POSTGRES_USER:meowflow}
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 10000
+  flyway:
+    enabled: false
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+meowflow:
+  ai:
+    mock: true
+  notification:
+    mock: true
+  mcp:
+    mock: true
+
+logging:
+  level:
+    root: WARN
+    com.meowflow: INFO

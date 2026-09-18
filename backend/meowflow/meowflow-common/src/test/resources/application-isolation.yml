@@ -1,0 +1,44 @@
+# 集成测试专用的隔离 profile —— 必须由 BaseIntegrationTest 激活
+#
+# 与 application-integration.yml 的关键差异：
+#   1. 使用 meowflow_test 库（而非 meowflow 主库），避免脏写生产数据
+#   2. 关闭 Flyway 自动 migrate，由各模块测试自己跑 schema 注入
+#   3. RabbitMQ 走专属虚拟主机 /meowflow_test
+#   4. 关闭 LLM、外部集成的真实调用
+#
+# 启动方式（保持与项目既有 docker-compose 一致）：
+#   cd backend/meowflow/deploy/docker && docker compose -f docker-compose.dev.yml up -d
+# 然后手动建 meowflow_test 库：
+#   docker exec -it meowflow-postgres psql -U meowflow -c "CREATE DATABASE meowflow_test OWNER meowflow;"
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:meowflow_test}
+    username: ${POSTGRES_USER:meowflow}
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 6
+      minimum-idle: 2
+      pool-name: isolation-pool
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  flyway:
+    enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 15  # 单独一个 db，避免污染主业务缓存
+      timeout: 3000ms
+
+# 关闭外部副作用
+meowflow:
+  ai:
+    mock: true
+  notification:
+    mock: true
+  mcp:
+    mock: true

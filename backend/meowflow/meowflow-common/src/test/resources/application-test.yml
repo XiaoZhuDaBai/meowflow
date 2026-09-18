@@ -1,0 +1,15 @@
+# meowflow-common 单元测试配置 (真实环境)
+# 默认 mvn test 即连接真实 PostgreSQL/Redis
+spring:
+  flyway:
+    enabled: false
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+logging:
+  level:
+    com.meowflow: DEBUG

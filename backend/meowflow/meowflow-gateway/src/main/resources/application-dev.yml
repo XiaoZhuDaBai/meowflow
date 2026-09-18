@@ -1,0 +1,15 @@
+# 开发环境配置
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: true   # Docker 环境需要启用 Nacos
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+      config:
+        enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.meowflow: DEBUG
+    org.springframework.cloud.gateway: DEBUG

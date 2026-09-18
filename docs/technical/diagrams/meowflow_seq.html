@@ -1,0 +1,122 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;color:#2b2b2b}
+.ph{position:absolute;border-radius:8px;color:#fff;text-align:center;padding:6px 4px;font-size:13px;line-height:1.35;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ph b{display:block;font-size:14px}
+.life{position:absolute;top:190px;border-left:1.5px dashed #c3c9cf;z-index:1}
+.msg{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e5e9;border-radius:10px;font-size:12.2px;padding:1px 7px;text-align:center;z-index:4;box-shadow:0 1px 2px rgba(0,0,0,.08);white-space:nowrap}
+.num{position:absolute;width:20px;height:20px;border-radius:50%;background:#455a64;color:#fff;font-size:12px;text-align:center;line-height:20px;z-index:5;font-weight:700}
+svg{position:absolute;left:0;top:0;width:2080px;height:2000px;z-index:2;pointer-events:none}
+.leg{position:absolute;left:0;font-size:13px;line-height:20px;color:#333}
+.leg b.n{display:inline-block;width:24px;color:#455a64}
+</style></head><body>
+<div style="position:relative;width:2080px;height:2000px">
+<div style="position:absolute;left:0;top:14px;width:2080px;text-align:center">
+ <div style="font-size:30px;font-weight:800;color:#263238">喵流 MeowFlow · 一次完整运行的端到端时序图</div>
+ <div style="font-size:14px;color:#777;margin-top:4px">入口触发 → 引擎调度 → LLM/多模型路由 → RAG 检索 → Agent 工具循环 → 汇总落库/事件（编号箭头，说明见底部）</div></div>
+<div class="ph" style="left:41px;top:112px;width:218px;height:74px;background:#546e7a"><b>前端 / 外部调用方</b>运行·Chatflow·Webhook/Cron</div>
+<div class="life" style="left:150px;height:1270px"></div>
+<div class="ph" style="left:261px;top:112px;width:218px;height:74px;background:#ef6c00"><b>ExecutionService / Trigger</b>入口(Controller·Chatflow)</div>
+<div class="life" style="left:370px;height:1270px"></div>
+<div class="ph" style="left:481px;top:112px;width:218px;height:74px;background:#ef6c00"><b>WorkflowEngine</b>调度内核(DAG·就绪队列)</div>
+<div class="life" style="left:590px;height:1270px"></div>
+<div class="ph" style="left:701px;top:112px;width:218px;height:74px;background:#ef6c00"><b>节点执行器</b>NodeExecutor(各节点)</div>
+<div class="life" style="left:810px;height:1270px"></div>
+<div class="ph" style="left:921px;top:112px;width:218px;height:74px;background:#8e24aa"><b>ChatModelGateway/Router</b>路由+熔断+健康(③模型)</div>
+<div class="life" style="left:1030px;height:1270px"></div>
+<div class="ph" style="left:1141px;top:112px;width:218px;height:74px;background:#8e24aa"><b>外部模型 Provider</b>OpenAI/Claude/阿里…</div>
+<div class="life" style="left:1250px;height:1270px"></div>
+<div class="ph" style="left:1361px;top:112px;width:218px;height:74px;background:#43a047"><b>RAG SearchService</b>Embedding+PGVector(②)</div>
+<div class="life" style="left:1470px;height:1270px"></div>
+<div class="ph" style="left:1581px;top:112px;width:218px;height:74px;background:#1e88e5"><b>MCPToolRegistry</b>stdio/sse 工具(④Agent)</div>
+<div class="life" style="left:1690px;height:1270px"></div>
+<div class="ph" style="left:1801px;top:112px;width:218px;height:74px;background:#546e7a"><b>事件/DB/Redis</b>运行事件·落库·会话</div>
+<div class="life" style="left:1910px;height:1270px"></div>
+<div style="position:absolute;left:40px;top:1590px;width:2000px;height:360px;border:1.5px solid #d0d3d8;border-radius:14px;background:#fafbfc"></div>
+<div style="position:absolute;left:60px;top:1602px;font-size:16px;font-weight:800;color:#37474f">时序步骤说明（编号 = 图中箭头；实线=请求/调用，虚线=返回/响应）</div>
+<div class="msg" style="left:260px;top:300px">1. 发起执行(async)</div>
+<div class="num" style="left:138px;top:289px">1</div>
+<div class="msg" style="left:552px;top:344px">2. 建Execution·@Async</div>
+<div class="num" style="left:398px;top:333px">2</div>
+<div class="msg" style="left:480px;top:388px">3. execute(ctx)</div>
+<div class="num" style="left:358px;top:377px">3</div>
+<div class="msg" style="left:772px;top:432px">4. DAG+就绪队列</div>
+<div class="num" style="left:618px;top:421px">4</div>
+<div class="msg" style="left:700px;top:476px">5. 执行节点(≤64并行)</div>
+<div class="num" style="left:578px;top:465px">5</div>
+<div class="msg" style="left:992px;top:520px">6. 输出写 ctx</div>
+<div class="num" style="left:838px;top:509px">6</div>
+<div class="msg" style="left:920px;top:564px">7. complete(model,msg)</div>
+<div class="num" style="left:798px;top:553px">7</div>
+<div class="msg" style="left:1212px;top:608px">8. 路由+熔断+健康</div>
+<div class="num" style="left:1058px;top:597px">8</div>
+<div class="msg" style="left:1140px;top:652px">9. HTTP 调用</div>
+<div class="num" style="left:1018px;top:641px">9</div>
+<div class="msg" style="left:1140px;top:696px">10. ChatResponse</div>
+<div class="num" style="left:1238px;top:685px">10</div>
+<div class="msg" style="left:920px;top:740px">11. 响应/重试/兜底</div>
+<div class="num" style="left:1018px;top:729px">11</div>
+<div class="msg" style="left:1360px;top:784px">12. 事件+落库</div>
+<div class="num" style="left:798px;top:773px">12</div>
+<div class="msg" style="left:700px;top:828px">13. 边路由→下游</div>
+<div class="num" style="left:578px;top:817px">13</div>
+<div class="msg" style="left:1140px;top:872px">14. 知识检索</div>
+<div class="num" style="left:798px;top:861px">14</div>
+<div class="msg" style="left:1652px;top:916px">15. hybrid+RRF</div>
+<div class="num" style="left:1498px;top:905px">15</div>
+<div class="msg" style="left:1140px;top:960px">16. results[]</div>
+<div class="num" style="left:1458px;top:949px">16</div>
+<div class="msg" style="left:700px;top:1004px">17. Agent: toolSchemas</div>
+<div class="num" style="left:578px;top:993px">17</div>
+<div class="msg" style="left:920px;top:1048px">18. complete(tools)</div>
+<div class="num" style="left:798px;top:1037px">18</div>
+<div class="msg" style="left:1140px;top:1092px">19. 携带工具调用</div>
+<div class="num" style="left:1018px;top:1081px">19</div>
+<div class="msg" style="left:1140px;top:1136px">20. tool_calls 返回</div>
+<div class="num" style="left:1238px;top:1125px">20</div>
+<div class="msg" style="left:1250px;top:1180px">21. executeTool(name,args)</div>
+<div class="num" style="left:798px;top:1169px">21</div>
+<div class="msg" style="left:1872px;top:1224px">22. stdio/sse 执行</div>
+<div class="num" style="left:1718px;top:1213px">22</div>
+<div class="msg" style="left:1250px;top:1268px">23. 工具结果</div>
+<div class="num" style="left:1678px;top:1257px">23</div>
+<div class="msg" style="left:992px;top:1312px">24. 回填→循环</div>
+<div class="num" style="left:838px;top:1301px">24</div>
+<div class="msg" style="left:772px;top:1356px">25. End/Answer 汇总</div>
+<div class="num" style="left:618px;top:1345px">25</div>
+<div class="msg" style="left:480px;top:1400px">26. ExecutionResult</div>
+<div class="num" style="left:578px;top:1389px">26</div>
+<div class="msg" style="left:1140px;top:1444px">27. 更新 Execution</div>
+<div class="num" style="left:358px;top:1433px">27</div>
+<div class="msg" style="left:1030px;top:1488px">28. 事件/响应</div>
+<div class="num" style="left:1898px;top:1477px">28</div>
+<svg viewBox="0 0 2080 2000"><defs><marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#455a64"/></marker><marker id="ard" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#78909c"/></marker></defs><path d="M 150 300 L 370 300" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 404 344 L 484 344" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 370 388 L 590 388" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 624 432 L 704 432" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 590 476 L 810 476" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 844 520 L 924 520" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 810 564 L 1030 564" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1064 608 L 1144 608" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1030 652 L 1250 652" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1250 696 L 1030 696" fill="none" stroke="#78909c" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 1030 740 L 810 740" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 810 784 L 1910 784" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 590 828 L 810 828" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 810 872 L 1470 872" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1504 916 L 1584 916" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1470 960 L 810 960" fill="none" stroke="#78909c" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 590 1004 L 810 1004" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 810 1048 L 1030 1048" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1030 1092 L 1250 1092" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1250 1136 L 1030 1136" fill="none" stroke="#78909c" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 810 1180 L 1690 1180" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1724 1224 L 1804 1224" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1690 1268 L 810 1268" fill="none" stroke="#78909c" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 844 1312 L 924 1312" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 624 1356 L 704 1356" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 590 1400 L 370 1400" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 370 1444 L 1910 1444" fill="none" stroke="#455a64" stroke-width="1.8"  marker-end="url(#ar)"/><path d="M 1910 1488 L 150 1488" fill="none" stroke="#78909c" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#ard)"/></svg>
+<div class="leg" style="left:60px;top:1640px;width:1000px"><b class="n">1.</b> POST /workflow/executions?async=true；Chatflow chat(workflowId,msg)；Webhook/Cron/IM/表单触发入口</div>
+<div class="leg" style="left:60px;top:1662px;width:1000px"><b class="n">3.</b> ExecutionContext(executionId/workflowId/version/definition/input)；注册 CancellationToken 并发出 executionStarted 事件</div>
+<div class="leg" style="left:60px;top:1684px;width:1000px"><b class="n">5.</b> 每轮取≤64 个就绪节点并行执行 executeNodeWithTimeout；或串行(parallel.enabled=false)</div>
+<div class="leg" style="left:60px;top:1706px;width:1000px"><b class="n">7.</b> LLM/AI 类节点(LLM·Classify·Extract·Summarize·Agent…)调用 ChatModelGateway.complete，携带 CancellationToken</div>
+<div class="leg" style="left:60px;top:1728px;width:1000px"><b class="n">9.</b> POST {base}/v1/chat/completions（含 messages/temperature/max_tokens，Agent 可带 tools/tool_choice）</div>
+<div class="leg" style="left:60px;top:1750px;width:1000px"><b class="n">11.</b> 成功返回；异常在节点级：重试(≤10,500ms退避)→fallbackValue 兜底→取消(CancellationToken 50ms 轮询)</div>
+<div class="leg" style="left:60px;top:1772px;width:1000px"><b class="n">13.</b> EdgeRouter 按 DEFAULT/CONDITION/ERROR 边推进下游；失败节点只走 ERROR 边否则截断；JOIN 按 ALL/ANY/N_OF_M 放行</div>
+<div class="leg" style="left:60px;top:1794px;width:1000px"><b class="n">15.</b> vector(Embedding→PGVector 余弦 1-(v<=>q)) + keyword(当前占位)；SearchPostProcessor 去重/阈值/RRF/上下文拼装</div>
+<div class="leg" style="left:60px;top:1816px;width:1000px"><b class="n">17.</b> Agent 节点到达：从 MCPToolService.getAllTools() 构建 OpenAI function schemas（function-calling 策略）</div>
+<div class="leg" style="left:60px;top:1838px;width:1000px"><b class="n">19.</b> 再次经路由+熔断发起带工具定义的对话请求</div>
+<div class="leg" style="left:60px;top:1860px;width:1000px"><b class="n">21.</b> AgentExecutor/ToolExecutor 调用 MCPToolService.executeTool；单工具异常捕获为 {error} 不中断</div>
+<div class="leg" style="left:60px;top:1882px;width:1000px"><b class="n">23.</b> 工具输出返回给 Agent 节点</div>
+<div class="leg" style="left:60px;top:1904px;width:1000px"><b class="n">25.</b> 引擎收集所有 isEnd 节点输出 merge 为工作流最终输出；未执行节点标记 SKIPPED</div>
+<div class="leg" style="left:60px;top:1926px;width:1000px"><b class="n">27.</b> ExecutionService 更新状态/输出/成本；取消关联 HumanTask；@Async 失败亦落 failed 状态</div>
+<div class="leg" style="left:1100px;top:1640px;width:900px"><b class="n">2.</b> 写入 Execution(pending)；经 Spring 代理自调用 @Async(workflowExecutorPool) 切线程池</div>
+<div class="leg" style="left:1100px;top:1662px;width:900px"><b class="n">4.</b> DAG：dagCache(workflowId:version) 命中或 DAGSorter 拓扑排序；触发节点入就绪队列</div>
+<div class="leg" style="left:1100px;top:1684px;width:900px"><b class="n">6.</b> Trigger/普通节点输出写入 context.nodeResult；recordStarted 记录开始状态</div>
+<div class="leg" style="left:1100px;top:1706px;width:900px"><b class="n">8.</b> ChatModelRouter 按 AIProvider 内置表/前缀匹配 → ChatClient；Resilience4j 熔断器包裹；成功后 ModelHealthStore.markSuccess</div>
+<div class="leg" style="left:1100px;top:1728px;width:900px"><b class="n">10.</b> 返回 content/model/tokens/tool_calls/latency；失败→熔断计数，熔断开路→fallback 响应</div>
+<div class="leg" style="left:1100px;top:1750px;width:900px"><b class="n">12.</b> nodeFinished 事件→RedisStream；NodeExecution 持久化；enableStream 时经 SSE 推送 nodeStreamDelta 增量</div>
+<div class="leg" style="left:1100px;top:1772px;width:900px"><b class="n">14.</b> KnowledgeSearch 节点：kbId/query(支持${}变量)/topK=5/阈值0.7/mode=hybrid|vector|keyword</div>
+<div class="leg" style="left:1100px;top:1794px;width:900px"><b class="n">16.</b> 返回 {chunkId,documentId,content,score,metadata}[] → 节点输出供下游 LLM/Agent prompt 引用</div>
+<div class="leg" style="left:1100px;top:1816px;width:900px"><b class="n">18.</b> extraParams={tools, tool_choice:"auto"} 再次调用 gateway（JSON ReAct 策略则输出 {action:tool|final} 文本协议）</div>
+<div class="leg" style="left:1100px;top:1838px;width:900px"><b class="n">20.</b> 返回 message.tool_calls[{function:{name,arguments}}]（原生模式）</div>
+<div class="leg" style="left:1100px;top:1860px;width:900px"><b class="n">22.</b> MCPToolRegistry → StdioAdapter(本地进程)/SseAdapter(远程SSE) 执行；参数类型转换+必填校验</div>
+<div class="leg" style="left:1100px;top:1882px;width:900px"><b class="n">24.</b> 追加 assistant(tool_calls)+tool(结果) 消息，循环至无 tool_call/final/答案或达到 maxIterations(默认5)</div>
+<div class="leg" style="left:1100px;top:1904px;width:900px"><b class="n">26.</b> 返回 ExecutionResult(status/output/costMs/costToken/costAmount)；成功/失败/取消计数并清理取消注册</div>
+<div class="leg" style="left:1100px;top:1926px;width:900px"><b class="n">28.</b> RedisStream 事件供前端实时(SSE)；同步执行直接返回 ExecutionResponse，异步则轮询/事件获取结果</div>
+</div></body></html>

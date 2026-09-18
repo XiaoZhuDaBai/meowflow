@@ -1,0 +1,11 @@
+# Spring Boot 3 Auto Configuration for MeowFlow Infra Module
+# https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config
+
+com.meowflow.infra.config.InfraMapperAutoConfiguration
+com.meowflow.infra.config.AIThreadPoolConfig
+com.meowflow.infra.config.RedisConfig
+com.meowflow.infra.config.EmbeddingConfig
+com.meowflow.infra.config.InfraConfig
+com.meowflow.infra.embedding.EmbeddingClientOpenAI
+com.meowflow.infra.embedding.EmbeddingClientAliConfig
+com.meowflow.common.config.UnifiedCircuitBreakerConfig

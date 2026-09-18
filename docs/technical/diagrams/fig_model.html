@@ -1,0 +1,95 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;color:#2b2b2b}
+.zone{position:absolute;border-radius:14px;z-index:1}
+.zonehead{position:absolute;z-index:2;color:#fff;font-weight:700;font-size:15.5px;display:flex;align-items:center;padding-left:13px;letter-spacing:.5px;border-radius:12px 12px 0 0}
+.box{position:absolute;background:#fff;border:1.5px solid #c9ccd1;border-radius:9px;padding:7px 9px;font-size:12.2px;line-height:1.5;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.box .bt{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.box.dash{border-style:dashed;background:#fcfcfc}
+.box .ln{padding-left:2px}
+.hb{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:800;color:#37474f;background:#fff}
+.ah{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:700;color:#fff}
+svg{position:absolute;left:0;top:0;width:'+W+'px;height:'+H+'px;z-index:5;pointer-events:none}
+.ph{position:absolute;border-radius:8px;color:#fff;text-align:center;padding:5px 3px;font-size:12px;line-height:1.35;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ph b{display:block;font-size:13.5px}
+.life{position:absolute;border-left:1.5px dashed #c3c9cf;z-index:1}
+.msg{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e5e9;border-radius:9px;font-size:11.8px;padding:1px 6px;text-align:center;z-index:4;box-shadow:0 1px 2px rgba(0,0,0,.07);white-space:nowrap}
+.num{position:absolute;width:19px;height:19px;border-radius:50%;background:#455a64;color:#fff;font-size:11.5px;text-align:center;line-height:19px;z-index:6;font-weight:700}
+.leg{position:absolute;font-size:12.6px;line-height:19px;color:#333}
+.leg b.n{display:inline-block;width:26px;color:#455a64}
+</style></head><body><div style="position:relative;width:'+W+'px;height:'+H+'px">
+<div style="position:absolute;left:0;top:12px;width:2100px;text-align:center"><div style="font-size:28px;font-weight:800;color:#263238">③ 多模型管理架构 —— 独立全景图</div><div style="font-size:13.5px;color:#777;margin-top:3px">运行时(节点→Gateway→Router→ChatClient→Provider) + 可靠性(熔断/健康/降级链) + 管理面(DB 模型市场) + 成本日志（据 meowflow-infra chat/router/service）</div></div>
+<div class="zone" data-name="z1" style="left:40px;top:150px;width:1100px;height:520px;background:#f9f2fd;border:2px solid #8e24aa"></div>
+<div class="zonehead" data-name="z1H" style="left:40px;top:150px;width:1100px;height:30px;background:#8e24aa">运行时路由链路（工作流节点实际使用）</div>
+<div class="zone" data-name="z2" style="left:1160px;top:150px;width:900px;height:520px;background:#f9f2fd;border:2px solid #8e24aa"></div>
+<div class="zonehead" data-name="z2H" style="left:1160px;top:150px;width:900px;height:30px;background:#8e24aa">可靠性：熔断 · 健康 · 降级链</div>
+<div class="zone" data-name="z3" style="left:40px;top:690px;width:1500px;height:460px;background:#f9f2fd;border:2px solid #8e24aa"></div>
+<div class="zonehead" data-name="z3H" style="left:40px;top:690px;width:1500px;height:30px;background:#8e24aa">管理面：DB 模型市场 + 成本日志</div>
+<div class="zone" data-name="z4" style="left:1560px;top:690px;width:500px;height:460px;background:#f9f2fd;border:2px solid #8e24aa"></div>
+<div class="zonehead" data-name="z4H" style="left:1560px;top:690px;width:500px;height:30px;background:#8e24aa">调用方与配置</div>
+<div class="box " data-name="M1" style="left:54px;top:196px;width:1040px;height:128px"><span class="bt">ChatModelGateway（门面）</span><div class="ln">complete(request) / complete(request, token) 取消支持</div><div class="ln">stream(request) → Flux<String>（Reactor）</div><div class="ln">LLM / AI / Agent 节点统一注入此网关</div><div class="ln">isHealthy(model) · getSupportedModels()</div></div>
+<div class="box " data-name="M2" style="left:54px;top:342px;width:1040px;height:156px"><span class="bt">ChatModelRouter（路由中枢）</span><div class="ln">Spring 注入 Map<String, chat.ChatClient>（按 Bean）</div><div class="ln">resolveClient: AIProvider.getByModel(内置模型表)</div><div class="ln">未命中 → 模型名前缀匹配 findClientByModelPrefix</div><div class="ln">routeWithCircuitBreaker: 熔断包裹 + fallback 响应</div><div class="ln">routeAndStream: Reactor Flux 流式路由</div><div class="ln">routeAndComplete: 同步 + ModelHealthStore 记录</div></div>
+<div class="box " data-name="M3" style="left:54px;top:516px;width:1040px;height:140px"><span class="bt">Provider 客户端</span><div class="ln">新 chat/ 包: OpenAIChatClient(@ConditionalOnProperty</div><div class="ln">meowflow.ai.openai.enabled; RestTemplate+WebClient;</div><div class="ln">POST /v1/chat/completions; 解析 toolCalls) · ClaudeChatClient</div><div class="ln">旧 client/ 包(虚线·两代并存): ChatClientOpenAI /</div><div class="ln">Anthropic / Ali(千问) / Baidu(文心) → ModelRouter</div></div>
+<div class="box " data-name="R1" style="left:1174px;top:196px;width:872px;height:150px"><span class="bt">Resilience4j 熔断</span><div class="ln">UnifiedCircuitBreakerConfig(common)</div><div class="ln">aiCircuitBreakerRegistry：所有 AI 组件共用</div><div class="ln">AICircuitBreakerRegistryHolder.forProvider(provider)</div><div class="ln">CallNotPermittedException → fallback 提示响应</div><div class="ln">per-provider 独立熔断(openai/anthropic/…)</div></div>
+<div class="box " data-name="R2" style="left:1174px;top:362px;width:872px;height:150px"><span class="bt">ModelHealthStore（Redis+本地缓存）</span><div class="ln">键: meowflow:model:health / meowflow:model:failure</div><div class="ln">markSuccess: 清失败计数+续期</div><div class="ln">markFailure: 连续 3 次 → UNHEALTHY</div><div class="ln">allowCall: RECOVERING 态 1/3 概率放行探测</div><div class="ln">recover: 手动恢复(管理 API)</div></div>
+<div class="box " data-name="R3" style="left:1174px;top:528px;width:872px;height:128px"><span class="bt">旧版降级链 ModelRouter(虚线)</span><div class="ln">registerClient("provider:model") · fallbackChains</div><div class="ln">候选权重递减(100→…) · HealthChecker 周期检查</div><div class="ln">不健康候选跳过 · 失败自动尝试下一个</div><div class="ln">由 ChatClientFactory @PostConstruct 静态注册</div></div>
+<div class="box " data-name="D1" style="left:54px;top:736px;width:710px;height:240px"><span class="bt">AIModelService（DB 模型市场）</span><div class="ln">CRUD · listEnabled(节点下拉) · getById</div><div class="ln">getDefault(isDefault+enabled) · setDefault(先全清)</div><div class="ln">resolveDefault: 默认 → sortOrder 最小启用</div><div class="ln">page(current,size,keyword) 后台分页</div><div class="ln">testConnection: 当前仅配置校验占位</div><div class="ln">copyPropertiesIgnoreNull 部分更新</div></div>
+<div class="box " data-name="D2" style="left:784px;top:736px;width:740px;height:240px"><span class="bt">mf_ai_model 实体字段</span><div class="ln">provider / modelKey / baseUrl</div><div class="ln">apiKey · apiSecret → @Encrypted 字段级加密</div><div class="ln">(EncryptedStringTypeHandler 自动加解密)</div><div class="ln">maxContextTokens / maxOutputTokens</div><div class="ln">inputPrice / outputPrice(BigDecimal)</div><div class="ln">capabilities: chat,embedding,vision,function_call</div><div class="ln">enabled / isDefault / sortOrder / version / remark</div><div class="ln">逻辑删除 deleted + create_by/update_by</div></div>
+<div class="box " data-name="D3" style="left:54px;top:996px;width:710px;height:138px"><span class="bt">成本与日志</span><div class="ln">AIInvokeLogService: @Async(logExecutor) 落库</div><div class="ln">AIInvokeLog: 模型/token/耗时/成本字段</div><div class="ln">AICostCalculator: 价格×token 估算</div><div class="ln">AICallLoggingAspect 自动记录 AI 调用</div><div class="ln">MonitorFeignClient → monitor 执行日志</div></div>
+<div class="box " data-name="D4" style="left:784px;top:996px;width:740px;height:138px"><span class="bt">REST 出口 AIModelController</span><div class="ln">/api/infra/model : GET/POST · {id}: PUT/DELETE</div><div class="ln">/enabled(节点下拉) · /default · /page · /{id}</div><div class="ln">/{id}/test 测试连接 · /{id}/default 设默认</div><div class="ln">列表 apiKey 打码显示</div><div class="ln">虚线说明: DB 配置尚未动态注册进运行时路由</div></div>
+<div class="box " data-name="C1" style="left:1574px;top:736px;width:472px;height:240px"><span class="bt">调用方（引擎节点）</span><div class="ln">LLMExecutor: 同步/流式+重试回退</div><div class="ln">AbstractAIExecutor.complete(context,input,prompt)</div><div class="ln">AgentExecutor / AIClassify / AIExtract</div><div class="ln">AISummarize / ParameterExtractor / Question</div><div class="ln">ChatRequest{model,messages,temp,maxTokens}</div><div class="ln">ChatResponse{content,toolCalls,tokens,latency}</div><div class="ln">model 缺省 "gpt-4o" · extraParams(tools 等)</div></div>
+<div class="box " data-name="C2" style="left:1574px;top:996px;width:472px;height:138px"><span class="bt">配置 / 线程池</span><div class="ln">meowflow.ai.openai.{enabled,api-key,base-url}</div><div class="ln">anthropic… · router.primary/fallback-models</div><div class="ln">AIThreadPoolConfig: memoryLoad/healthCheck/</div><div class="ln">streamProcess/intentResolve · ModelHealthStore Bean</div></div>
+<div class="ah" style="top:104px;height:28px;background:#8e24aa">架构视图</div>
+<div class="ah" style="top:1170px;height:28px;background:#546e7a">核心时序 ③ —— LLM/AI 节点的一次模型调用（路由→熔断→健康→Provider→成本）</div>
+<div class="ph" style="left:75px;top:1230px;width:210px;height:64px;background:#8e24aa"><b>LLM/AI/Agent 节点</b>引擎执行器</div>
+<div class="life" style="left:180px;top:1288px;height:640px"></div>
+<div class="ph" style="left:440px;top:1230px;width:200px;height:64px;background:#8e24aa"><b>ChatModelGateway</b>门面+取消</div>
+<div class="life" style="left:540px;top:1288px;height:640px"></div>
+<div class="ph" style="left:800px;top:1230px;width:200px;height:64px;background:#ab47bc"><b>ChatModelRouter</b>路由</div>
+<div class="life" style="left:900px;top:1288px;height:640px"></div>
+<div class="ph" style="left:1150px;top:1230px;width:220px;height:64px;background:#6a1b9a"><b>熔断+健康存储</b>aiCircuitBreakerRegistry</div>
+<div class="life" style="left:1260px;top:1288px;height:640px"></div>
+<div class="ph" style="left:1520px;top:1230px;width:200px;height:64px;background:#ab47bc"><b>ChatClient</b>OpenAI/Claude</div>
+<div class="life" style="left:1620px;top:1288px;height:640px"></div>
+<div class="ph" style="left:1885px;top:1230px;width:190px;height:64px;background:#6a1b9a"><b>外部 Provider</b>模型 HTTP API</div>
+<div class="life" style="left:1980px;top:1288px;height:640px"></div>
+<div class="msg" style="left:360px;top:1320px">1. complete(req,token)</div>
+<div class="num" style="left:169px;top:1310px">1</div>
+<div class="msg" style="left:720px;top:1368px">2. routeWithCircuitBreaker</div>
+<div class="num" style="left:529px;top:1358px">2</div>
+<div class="msg" style="left:1062px;top:1416px">3. 解析模型→客户端</div>
+<div class="num" style="left:921px;top:1406px">3</div>
+<div class="msg" style="left:1080px;top:1464px">4. 熔断包裹</div>
+<div class="num" style="left:889px;top:1454px">4</div>
+<div class="msg" style="left:1440px;top:1512px">5. client.chat()</div>
+<div class="num" style="left:1249px;top:1502px">5</div>
+<div class="msg" style="left:1800px;top:1560px">6. HTTP 调用</div>
+<div class="num" style="left:1609px;top:1550px">6</div>
+<div class="msg" style="left:1800px;top:1608px">7. 原生响应</div>
+<div class="num" style="left:1969px;top:1598px">7</div>
+<div class="msg" style="left:1440px;top:1656px">8. 解析→ChatResponse</div>
+<div class="num" style="left:1609px;top:1646px">8</div>
+<div class="msg" style="left:1422px;top:1704px">9. 健康记录</div>
+<div class="num" style="left:1281px;top:1694px">9</div>
+<div class="msg" style="left:1080px;top:1752px">10. 成功/熔断降级</div>
+<div class="num" style="left:1249px;top:1742px">10</div>
+<div class="msg" style="left:720px;top:1800px">11. 响应返回</div>
+<div class="num" style="left:889px;top:1790px">11</div>
+<div class="msg" style="left:360px;top:1848px">12. 返回/流式</div>
+<div class="num" style="left:529px;top:1838px">12</div>
+<svg viewBox="0 0 2100 2200"><defs><marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#455a64"/></marker><marker id="ard" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#78909c"/></marker><path d="M 1094 420 L 1172 420" fill="none" stroke="#8e24aa" stroke-width="2"  marker-end="url(#ar)"/><path d="M 200 670 L 200 734" fill="none" stroke="#8e24aa" stroke-width="1.8" stroke-dasharray="6,5" marker-end="url(#ard)"/><path d="M 1094 608 L 1094 1150" fill="none" stroke="#8e24aa" stroke-width="1.8" stroke-dasharray="6,5" marker-end="url(#ard)"/><path d="M 180 1320 L 540 1320" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 540 1368 L 900 1368" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 926 1416 L 1000 1416" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 900 1464 L 1260 1464" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1260 1512 L 1620 1512" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1620 1560 L 1980 1560" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1980 1608 L 1620 1608" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 1620 1656 L 1260 1656" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1286 1704 L 1360 1704" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1260 1752 L 900 1752" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 900 1800 L 540 1800" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 540 1848 L 180 1848" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/></svg>
+<div style="position:absolute;left:40px;top:1950px;width:2020px;height:206px;border:1.5px solid #d0d3d8;border-radius:12px;background:#fafbfc"></div>
+<div style="position:absolute;left:58px;top:1960px;font-size:14.5px;font-weight:800;color:#37474f">核心时序步骤说明（实线=调用/请求，虚线=返回/响应）</div>
+<div class="leg" style="left:58px;top:1984px;width:986px"><b class="n">1.</b> 节点发起带取消令牌的调用</div>
+<div class="leg" style="left:1050px;top:1984px;width:986px"><b class="n">2.</b> 网关带熔断路由</div>
+<div class="leg" style="left:58px;top:2006px;width:986px"><b class="n">3.</b> 按模型名解析 Provider 客户端</div>
+<div class="leg" style="left:1050px;top:2006px;width:986px"><b class="n">4.</b> Resilience4j 熔断包裹</div>
+<div class="leg" style="left:58px;top:2028px;width:986px"><b class="n">5.</b> 客户端构造并执行</div>
+<div class="leg" style="left:1050px;top:2028px;width:986px"><b class="n">6.</b> HTTP 调用外部模型</div>
+<div class="leg" style="left:58px;top:2050px;width:986px"><b class="n">7.</b> 原生响应返回</div>
+<div class="leg" style="left:1050px;top:2050px;width:986px"><b class="n">8.</b> 解析为统一 ChatResponse</div>
+<div class="leg" style="left:58px;top:2072px;width:986px"><b class="n">9.</b> 健康存储记录(3次失败熔断)</div>
+<div class="leg" style="left:1050px;top:2072px;width:986px"><b class="n">10.</b> 熔断开路→降级/换候选</div>
+<div class="leg" style="left:58px;top:2094px;width:986px"><b class="n">11.</b> 响应回传+取消边界检查</div>
+<div class="leg" style="left:1050px;top:2094px;width:986px"><b class="n">12.</b> 节点输出/流式/成本异步日志</div>
+</div></body></html>

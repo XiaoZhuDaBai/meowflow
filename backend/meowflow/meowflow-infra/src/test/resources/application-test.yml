@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    # 集成测试: 连接真实 PostgreSQL (meowflow 数据库)
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:meowflow}
+    username: ${POSTGRES_USER:meowflow}
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: false
+    locations: classpath:db/migration,classpath:db/migration/workflow
+
+# 集成测试: 真实调用外部服务 (mock 关闭)
+meowflow:
+  ai:
+    mock: false
+    provider: openai
+  notification:
+    mock: false
+  mcp:
+    mock: false
+
+logging:
+  level:
+    com.meowflow: DEBUG
+    org.springframework.test: INFO

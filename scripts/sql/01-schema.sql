@@ -1,0 +1,582 @@
+-- =============================================================
+-- 喵流 MeowFlow - 业务表 Schema DDL
+-- 前缀: mf_<module>_<entity>
+-- 依赖: 必须先执行 00-init.sql
+-- 适用范围: PostgreSQL 15+
+-- 创建日期: 2026-07-12
+-- =============================================================
+
+\set ON_ERROR_STOP on
+
+-- ============================================================
+-- M00 系统模块 (mf_sys_*)
+--   组织 / 用户 / 角色 / 权限 / 登录日志
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+
+-- 组织表
+DROP TABLE IF EXISTS mf_sys_org CASCADE;
+CREATE TABLE mf_sys_org (
+  id              BIGSERIAL PRIMARY KEY,
+  parent_id       BIGINT       DEFAULT 0,
+  name            VARCHAR(64)  NOT NULL,
+  code            VARCHAR(64)  NOT NULL UNIQUE,
+  sort            INT          DEFAULT 0,
+  leader_user_id  BIGINT,
+  phone           VARCHAR(32),
+  email           VARCHAR(128),
+  status          VARCHAR(16)  DEFAULT 'active',
+  remark          VARCHAR(255),
+  deleted         BOOLEAN      DEFAULT FALSE,
+  create_by       BIGINT,
+  create_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  update_by       BIGINT,
+  update_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_sys_org IS '组织表';
+COMMENT ON COLUMN mf_sys_org.parent_id IS '父组织 id,0 表示顶级';
+
+CREATE TRIGGER trg_mf_sys_org_audit BEFORE INSERT OR UPDATE ON mf_sys_org
+  FOR EACH ROW EXECUTE FUNCTION mf_set_audit_columns();
+CREATE TRIGGER trg_mf_sys_org_soft BEFORE INSERT ON mf_sys_org
+  FOR EACH ROW EXECUTE FUNCTION mf_soft_delete_check();
+
+-- 岗位表
+DROP TABLE IF EXISTS mf_sys_post CASCADE;
+CREATE TABLE mf_sys_post (
+  id          BIGSERIAL PRIMARY KEY,
+  code        VARCHAR(64)  NOT NULL UNIQUE,
+  name        VARCHAR(64)  NOT NULL,
+  sort        INT          DEFAULT 0,
+  status      VARCHAR(16)  DEFAULT 'active',
+  remark      VARCHAR(255),
+  deleted     BOOLEAN      DEFAULT FALSE,
+  create_by   BIGINT,
+  create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  update_by   BIGINT,
+  update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_post IS '岗位表';
+
+-- 用户表
+DROP TABLE IF EXISTS mf_sys_user CASCADE;
+CREATE TABLE mf_sys_user (
+  id             BIGSERIAL PRIMARY KEY,
+  username       VARCHAR(64)  NOT NULL UNIQUE,
+  password       VARCHAR(255) NOT NULL,
+  nickname       VARCHAR(64),
+  email          VARCHAR(128),
+  phone          VARCHAR(32),
+  avatar         VARCHAR(255),
+  real_name      VARCHAR(64),
+  id_card        VARCHAR(32),
+  status         VARCHAR(16)   DEFAULT 'active',
+  last_login_ip  VARCHAR(64),
+  last_login_at  TIMESTAMP,
+  org_id         BIGINT        REFERENCES mf_sys_org(id),
+  deleted        BOOLEAN       DEFAULT FALSE,
+  create_by      BIGINT,
+  create_time    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+  update_by      BIGINT,
+  update_time    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_sys_user IS '用户表';
+COMMENT ON COLUMN mf_sys_user.password IS 'BCrypt 加密后的密码';
+
+CREATE TRIGGER trg_mf_sys_user_audit BEFORE INSERT OR UPDATE ON mf_sys_user
+  FOR EACH ROW EXECUTE FUNCTION mf_set_audit_columns();
+
+-- 角色表
+DROP TABLE IF EXISTS mf_sys_role CASCADE;
+CREATE TABLE mf_sys_role (
+  id          BIGSERIAL PRIMARY KEY,
+  code        VARCHAR(64)  NOT NULL UNIQUE,
+  name        VARCHAR(64)  NOT NULL,
+  data_scope  VARCHAR(16)  DEFAULT 'all',
+  sort        INT          DEFAULT 0,
+  status      VARCHAR(16)  DEFAULT 'active',
+  remark      VARCHAR(255),
+  deleted     BOOLEAN      DEFAULT FALSE,
+  create_by   BIGINT,
+  create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  update_by   BIGINT,
+  update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_role IS '角色表';
+
+-- 用户-角色关联
+DROP TABLE IF EXISTS mf_sys_user_role CASCADE;
+CREATE TABLE mf_sys_user_role (
+  user_id     BIGINT NOT NULL REFERENCES mf_sys_user(id) ON DELETE CASCADE,
+  role_id     BIGINT NOT NULL REFERENCES mf_sys_role(id) ON DELETE CASCADE,
+  org_id      BIGINT NOT NULL DEFAULT 0 REFERENCES mf_sys_org(id),
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, role_id, org_id)
+);
+COMMENT ON TABLE mf_sys_user_role IS '用户-角色关联表';
+
+-- 菜单/权限表
+DROP TABLE IF EXISTS mf_sys_permission CASCADE;
+CREATE TABLE mf_sys_permission (
+  id          BIGSERIAL PRIMARY KEY,
+  parent_id   BIGINT       DEFAULT 0,
+  type        VARCHAR(16)  NOT NULL,
+  name        VARCHAR(64)  NOT NULL,
+  code        VARCHAR(128),
+  path        VARCHAR(255),
+  icon        VARCHAR(64),
+  sort        INT          DEFAULT 0,
+  status      VARCHAR(16)  DEFAULT 'active',
+  remark      VARCHAR(255),
+  create_by   BIGINT,
+  create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  update_by   BIGINT,
+  update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_permission IS '权限(菜单/按钮/接口)表';
+
+-- 角色-权限关联
+DROP TABLE IF EXISTS mf_sys_role_permission CASCADE;
+CREATE TABLE mf_sys_role_permission (
+  role_id        BIGINT NOT NULL REFERENCES mf_sys_role(id) ON DELETE CASCADE,
+  permission_id  BIGINT NOT NULL REFERENCES mf_sys_permission(id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, permission_id)
+);
+COMMENT ON TABLE mf_sys_role_permission IS '角色-权限关联表';
+
+-- 登录日志
+DROP TABLE IF EXISTS mf_sys_login_log CASCADE;
+CREATE TABLE mf_sys_login_log (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      BIGINT,
+  username     VARCHAR(64),
+  ip           VARCHAR(64),
+  user_agent   VARCHAR(512),
+  region       VARCHAR(64),
+  status       VARCHAR(16),
+  message      VARCHAR(255),
+  login_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_login_log IS '登录日志表';
+
+-- 操作审计
+DROP TABLE IF EXISTS mf_sys_audit_log CASCADE;
+CREATE TABLE mf_sys_audit_log (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      BIGINT,
+  username     VARCHAR(64),
+  module       VARCHAR(64),
+  action       VARCHAR(64),
+  request_url  VARCHAR(512),
+  method       VARCHAR(8),
+  params       JSONB,
+  result       TEXT,
+  cost_ms      INT,
+  ip           VARCHAR(64),
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_sys_audit_log IS '操作审计日志';
+COMMENT ON COLUMN mf_sys_audit_log.params IS '请求参数 JSONB';
+
+
+-- ============================================================
+-- M01 工作流模块 (mf_wf_*)
+-- ============================================================
+
+-- 工作流分类
+DROP TABLE IF EXISTS mf_wf_category CASCADE;
+CREATE TABLE mf_wf_category (
+  id          BIGSERIAL PRIMARY KEY,
+  parent_id   BIGINT DEFAULT 0,
+  code        VARCHAR(64) NOT NULL UNIQUE,
+  name        VARCHAR(64) NOT NULL,
+  icon        VARCHAR(255),
+  sort        INT DEFAULT 0,
+  status      VARCHAR(16) DEFAULT 'active',
+  create_by   BIGINT,
+  create_time TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+  update_by   BIGINT,
+  update_time TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_category IS '工作流分类表';
+
+-- 工作流分组
+DROP TABLE IF EXISTS mf_wf_group CASCADE;
+CREATE TABLE mf_wf_group (
+  id          BIGSERIAL PRIMARY KEY,
+  user_id     BIGINT NOT NULL,
+  name        VARCHAR(64) NOT NULL,
+  sort        INT DEFAULT 0,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_group IS '工作流分组表(用户私有)';
+
+-- 工作流主表
+DROP TABLE IF EXISTS mf_wf_workflow CASCADE;
+CREATE TABLE mf_wf_workflow (
+  id              BIGSERIAL PRIMARY KEY,
+  category_id     BIGINT REFERENCES mf_wf_category(id),
+  group_id        BIGINT REFERENCES mf_wf_group(id),
+  name            VARCHAR(128) NOT NULL,
+  code            VARCHAR(128) UNIQUE,
+  description     TEXT,
+  icon            VARCHAR(255),
+  status          VARCHAR(16)  DEFAULT 'draft',  -- draft/running/stopped/archived
+  current_version VARCHAR(16)  DEFAULT 'v1',
+  owner_id        BIGINT       NOT NULL,
+  org_id          BIGINT,
+  is_public       BOOLEAN      DEFAULT FALSE,
+  tags            JSONB,                          -- ["客服","HR"]
+  stat_total_run  BIGINT       DEFAULT 0,
+  stat_last_run_at TIMESTAMP,
+  deleted         BOOLEAN      DEFAULT FALSE,
+  create_by       BIGINT,
+  create_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  update_by       BIGINT,
+  update_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_wf_workflow IS '工作流主表';
+COMMENT ON COLUMN mf_wf_workflow.tags IS '标签数组';
+
+CREATE TRIGGER trg_mf_wf_workflow_audit BEFORE INSERT OR UPDATE ON mf_wf_workflow
+  FOR EACH ROW EXECUTE FUNCTION mf_set_audit_columns();
+
+-- 工作流版本
+DROP TABLE IF EXISTS mf_wf_workflow_version CASCADE;
+CREATE TABLE mf_wf_workflow_version (
+  id            BIGSERIAL PRIMARY KEY,
+  workflow_id   BIGINT  NOT NULL REFERENCES mf_wf_workflow(id) ON DELETE CASCADE,
+  version       VARCHAR(16) NOT NULL,
+  definition    JSONB   NOT NULL,           -- 画布节点+连线定义
+  input_schema  JSONB,                       -- 触发器入参 schema
+  output_schema JSONB,                       -- 输出 schema
+  dsl_text      TEXT,                        -- 可选: 同 definition 的文本版
+  changelog     TEXT,
+  publish_status VARCHAR(16) DEFAULT 'draft',-- draft/published/archived
+  published_at  TIMESTAMP,
+  published_by  BIGINT,
+  create_by     BIGINT,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(workflow_id, version)
+);
+COMMENT ON TABLE  mf_wf_workflow_version IS '工作流版本表,definition 存画布完整 JSON';
+COMMENT ON COLUMN mf_wf_workflow_version.definition IS '节点(nodes) + 连线(edges) JSON';
+
+-- 执行记录
+DROP TABLE IF EXISTS mf_wf_execution CASCADE;
+CREATE TABLE mf_wf_execution (
+  id            BIGSERIAL PRIMARY KEY,
+  workflow_id   BIGINT  NOT NULL REFERENCES mf_wf_workflow(id),
+  version       VARCHAR(16),
+  trigger_type  VARCHAR(32),            -- manual/webhook/cron/form/message
+  trigger_user_id BIGINT,
+  status        VARCHAR(16) DEFAULT 'pending', -- pending/running/success/failed/cancelled
+  input         JSONB,
+  output        JSONB,
+  error_message TEXT,
+  cost_ms       BIGINT,
+  cost_token    INT,
+  cost_amount   DECIMAL(10,4),
+  started_at    TIMESTAMP,
+  finished_at   TIMESTAMP,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_execution IS '工作流执行记录表';
+
+-- 节点执行记录
+DROP TABLE IF EXISTS mf_wf_node_execution CASCADE;
+CREATE TABLE mf_wf_node_execution (
+  id            BIGSERIAL PRIMARY KEY,
+  execution_id  BIGINT  NOT NULL REFERENCES mf_wf_execution(id) ON DELETE CASCADE,
+  node_id       VARCHAR(64),
+  node_type     VARCHAR(64),
+  node_name     VARCHAR(128),
+  status        VARCHAR(16) DEFAULT 'pending',
+  input         JSONB,
+  output        JSONB,
+  error_message TEXT,
+  retry_count   INT DEFAULT 0,
+  started_at    TIMESTAMP,
+  finished_at   TIMESTAMP,
+  cost_ms       BIGINT,
+  cost_token    INT,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_node_execution IS '节点级执行明细';
+
+-- 执行日志(流式追加)
+DROP TABLE IF EXISTS mf_wf_execution_log CASCADE;
+CREATE TABLE mf_wf_execution_log (
+  id           BIGSERIAL PRIMARY KEY,
+  execution_id BIGINT NOT NULL REFERENCES mf_wf_execution(id) ON DELETE CASCADE,
+  node_id      VARCHAR(64),
+  level        VARCHAR(16) DEFAULT 'info', -- debug/info/warn/error
+  message      TEXT,
+  payload      JSONB,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_execution_log IS '执行日志(可分区)';
+
+
+-- ============================================================
+-- M04 模板模块 (mf_tpl_*)
+-- ============================================================
+
+-- 模板主表
+DROP TABLE IF EXISTS mf_tpl_template CASCADE;
+CREATE TABLE mf_tpl_template (
+  id           BIGSERIAL PRIMARY KEY,
+  category_id  BIGINT REFERENCES mf_wf_category(id),
+  name         VARCHAR(128) NOT NULL,
+  description  TEXT,
+  icon         VARCHAR(255),
+  industry     VARCHAR(64),
+  scene        VARCHAR(64),
+  definition   JSONB NOT NULL,           -- 工作流完整定义
+  version      VARCHAR(16) DEFAULT 'v1',
+  author       VARCHAR(64),
+  author_id    BIGINT,
+  price        DECIMAL(10,2) DEFAULT 0,
+  tags         JSONB,
+  use_count    BIGINT DEFAULT 0,
+  score        DECIMAL(3,2) DEFAULT 5.00,
+  review_status VARCHAR(16) DEFAULT 'pending',  -- pending/approved/rejected
+  reviewed_by  BIGINT,
+  reviewed_at  TIMESTAMP,
+  review_remark VARCHAR(255),
+  status       VARCHAR(16) DEFAULT 'active',
+  create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_tpl_template IS '模板市场主表';
+
+-- 模板评价
+DROP TABLE IF EXISTS mf_tpl_review CASCADE;
+CREATE TABLE mf_tpl_review (
+  id           BIGSERIAL PRIMARY KEY,
+  template_id  BIGINT NOT NULL REFERENCES mf_tpl_template(id) ON DELETE CASCADE,
+  user_id      BIGINT NOT NULL,
+  score        DECIMAL(3,2),
+  content      TEXT,
+  create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_tpl_review IS '模板评价表';
+
+
+-- ============================================================
+-- M07 监控模块 (mf_mon_*)
+-- ============================================================
+
+-- 告警规则
+DROP TABLE IF EXISTS mf_mon_alert_rule CASCADE;
+CREATE TABLE mf_mon_alert_rule (
+  id           BIGSERIAL PRIMARY KEY,
+  name         VARCHAR(128) NOT NULL,
+  metric       VARCHAR(64)  NOT NULL,
+  condition    VARCHAR(16)  NOT NULL,         -- gt/lt/eq
+  threshold    DECIMAL(15,4) NOT NULL,
+  duration_s   INT DEFAULT 60,
+  channels     JSONB,                         -- ["dingtalk","email"]
+  webhook      VARCHAR(512),
+  enabled      BOOLEAN DEFAULT TRUE,
+  owner_id     BIGINT,
+  create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_mon_alert_rule IS '告警规则表';
+
+-- 告警记录
+DROP TABLE IF EXISTS mf_mon_alert CASCADE;
+CREATE TABLE mf_mon_alert (
+  id           BIGSERIAL PRIMARY KEY,
+  rule_id      BIGINT REFERENCES mf_mon_alert_rule(id),
+  metric       VARCHAR(64),
+  value        DECIMAL(15,4),
+  status       VARCHAR(16) DEFAULT 'firing',  -- firing/resolved/silenced
+  triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  resolved_at  TIMESTAMP,
+  notify_log   JSONB,
+  create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_mon_alert IS '告警事件表';
+
+-- 统计指标(每天一行)
+DROP TABLE IF EXISTS mf_mon_metric_daily CASCADE;
+CREATE TABLE mf_mon_metric_daily (
+  id              BIGSERIAL PRIMARY KEY,
+  metric_date     DATE NOT NULL UNIQUE,
+  wf_total        BIGINT DEFAULT 0,
+  wf_active       BIGINT DEFAULT 0,
+  exec_total      BIGINT DEFAULT 0,
+  exec_success    BIGINT DEFAULT 0,
+  exec_failed     BIGINT DEFAULT 0,
+  exec_avg_ms     INT DEFAULT 0,
+  token_total     BIGINT DEFAULT 0,
+  cost_amount     DECIMAL(12,4) DEFAULT 0,
+  user_total      BIGINT DEFAULT 0,
+  user_active     BIGINT DEFAULT 0,
+  create_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_mon_metric_daily IS '每日聚合指标';
+
+
+-- ============================================================
+-- M03 AI 模块 (mf_ai_*)
+-- ============================================================
+
+-- 模型配置
+DROP TABLE IF EXISTS mf_ai_model CASCADE;
+CREATE TABLE mf_ai_model (
+  id            BIGSERIAL PRIMARY KEY,
+  name          VARCHAR(64) NOT NULL,
+  provider      VARCHAR(64) NOT NULL,
+  model_type    VARCHAR(32) DEFAULT 'chat',  -- chat/embedding/rerank
+  api_base      VARCHAR(255),
+  api_key       VARCHAR(255),
+  enabled       BOOLEAN DEFAULT TRUE,
+  is_default    BOOLEAN DEFAULT FALSE,
+  priority      INT DEFAULT 0,
+  max_tokens    INT,
+  temperature   DECIMAL(3,2) DEFAULT 0.7,
+  timeout_s     INT DEFAULT 60,
+  config        JSONB,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_model IS 'AI 模型配置表';
+
+-- 知识库
+DROP TABLE IF EXISTS mf_ai_knowledge CASCADE;
+CREATE TABLE mf_ai_knowledge (
+  id            BIGSERIAL PRIMARY KEY,
+  name          VARCHAR(128) NOT NULL,
+  description   TEXT,
+  embedding_id  BIGINT,
+  chunk_size    INT DEFAULT 500,
+  overlap       INT DEFAULT 50,
+  owner_id      BIGINT,
+  status        VARCHAR(16) DEFAULT 'active',
+  doc_count     BIGINT DEFAULT 0,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_knowledge IS '知识库表';
+
+-- 知识库文档
+DROP TABLE IF EXISTS mf_ai_document CASCADE;
+CREATE TABLE mf_ai_document (
+  id            BIGSERIAL PRIMARY KEY,
+  kb_id         BIGINT NOT NULL REFERENCES mf_ai_knowledge(id) ON DELETE CASCADE,
+  name          VARCHAR(255) NOT NULL,
+  url           VARCHAR(512),
+  file_type     VARCHAR(32),
+  file_size     BIGINT,
+  status        VARCHAR(16) DEFAULT 'pending',
+  chunk_count   INT DEFAULT 0,
+  error_message TEXT,
+  parse_config  JSONB,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_document IS '知识库文档表';
+
+-- 知识库文档分块
+DROP TABLE IF EXISTS mf_ai_chunk CASCADE;
+CREATE TABLE mf_ai_chunk (
+  id            BIGSERIAL PRIMARY KEY,
+  document_id   BIGINT NOT NULL REFERENCES mf_ai_document(id) ON DELETE CASCADE,
+  kb_id         BIGINT NOT NULL,
+  chunk_index   INT,
+  content       TEXT,
+  embedding     vector(1536),                 -- 需 pgvector,若无扩展可改为 BYTEA
+  token_count   INT,
+  metadata      JSONB,
+  create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_chunk IS '知识库文档分块(vector 字段依赖 pgvector,若无扩展请降级为 BYTEA)';
+
+-- 调用记录
+DROP TABLE IF EXISTS mf_ai_invoke_log CASCADE;
+CREATE TABLE mf_ai_invoke_log (
+  id            BIGSERIAL PRIMARY KEY,
+  user_id       BIGINT,
+  execution_id  BIGINT,
+  node_id       VARCHAR(64),
+  model_id      BIGINT,
+  prompt        TEXT,
+  completion    TEXT,
+  prompt_tokens INT,
+  completion_tokens INT,
+  total_tokens  INT,
+  cost_ms       BIGINT,
+  cost_amount   DECIMAL(10,4),
+  status        VARCHAR(16),
+  error_message TEXT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_invoke_log IS 'AI 调用日志';
+
+
+-- ============================================================
+-- M10 集成模块 (mf_int_*)
+-- ============================================================
+
+-- 集成配置
+DROP TABLE IF EXISTS mf_int_config CASCADE;
+CREATE TABLE mf_int_config (
+  id          BIGSERIAL PRIMARY KEY,
+  type        VARCHAR(32) NOT NULL,         -- dingtalk/feishu/wxwork/email/sms/...
+  name        VARCHAR(128) NOT NULL,
+  enabled     BOOLEAN DEFAULT TRUE,
+  config      JSONB NOT NULL,                -- webhook/sign/密钥等
+  description VARCHAR(255),
+  owner_id    BIGINT,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_int_config IS '第三方集成配置表';
+
+-- 集成发送日志
+DROP TABLE IF EXISTS mf_int_send_log CASCADE;
+CREATE TABLE mf_int_send_log (
+  id            BIGSERIAL PRIMARY KEY,
+  config_id     BIGINT REFERENCES mf_int_config(id),
+  type          VARCHAR(32),
+  channel       VARCHAR(32),                 -- channel 是 config.type 简化版
+  receiver      VARCHAR(255),
+  subject       VARCHAR(255),
+  content       TEXT,
+  status        VARCHAR(16),
+  error_message TEXT,
+  cost_ms       BIGINT,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_int_send_log IS '集成消息发送日志';
+
+-- MCP 工具注册
+DROP TABLE IF EXISTS mf_int_mcp_tool CASCADE;
+CREATE TABLE mf_int_mcp_tool (
+  id          BIGSERIAL PRIMARY KEY,
+  name        VARCHAR(128) NOT NULL UNIQUE,
+  display_name VARCHAR(128),
+  description TEXT,
+  endpoint    VARCHAR(512),
+  transport   VARCHAR(16) DEFAULT 'stdio',   -- stdio/sse/websocket
+  config      JSONB,
+  input_schema JSONB,
+  enabled     BOOLEAN DEFAULT TRUE,
+  version     VARCHAR(16) DEFAULT 'v1',
+  create_by   BIGINT,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_int_mcp_tool IS 'MCP 工具注册表';
+
+
+-- ============================================================
+-- 完成
+-- ============================================================
+\echo '✅ 全部业务表 DDL 执行完成 (mf_sys_* / mf_wf_* / mf_tpl_* / mf_mon_* / mf_ai_* / mf_int_*)'

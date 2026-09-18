@@ -1,0 +1,79 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: meowflow-workflow
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+  config:
+    import: optional:classpath:common-defaults.yml
+  datasource:
+    url: jdbc:postgresql://localhost:5432/meowflow
+    username: meowflow
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+  jackson:
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        weight: 100
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:false}
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yml
+        refresh-enabled: true
+        import-check:
+          enabled: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: true
+      logic-not-delete-value: false
+
+# ==================== 工作流模块配置 ====================
+workflow:
+  engine:
+    max-concurrent-executions: 20
+    node-timeout-seconds: 300
+    retry-max-attempts: 3
+    executor-pool-core-size: 10
+    executor-pool-max-size: 20
+    parallel:
+      enabled: ${WORKFLOW_PARALLEL_ENABLED:true}
+  event:
+    sink: ${WORKFLOW_EVENT_SINK:redis}  # redis | noop
+    ttl-days: ${WORKFLOW_EVENT_TTL_DAYS:7}
+  version:
+    auto-increment: true
+    max-per-workflow: 100
+  trigger:
+    cron-max-instances: 10
+    redis-key-prefix: "wf:schedule:"
+  gateway:
+    base-url: ${GATEWAY_BASE_URL:http://localhost:8080}
+
+logging:
+  level:
+    root: INFO
+    com.meowflow: DEBUG
+    org.springframework.web: INFO

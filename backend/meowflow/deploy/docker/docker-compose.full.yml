@@ -1,0 +1,129 @@
+name: meowflow
+
+services:
+  # PostgreSQL 15 Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: meowflow-postgres
+    environment:
+      POSTGRES_DB: meowflow
+      POSTGRES_USER: meowflow
+      POSTGRES_PASSWORD: meowflow123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
+      - ../../scripts/sql/init.sql:/docker-entrypoint-initdb.d/zz-meowflow-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meowflow -d meowflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meowflow-network
+
+  # Redis 7 Cache
+  redis:
+    image: redis:7-alpine
+    container_name: meowflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meowflow-network
+
+  # Nacos 2.x Service Discovery & Config Center
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: meowflow-nacos
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: false
+      JAVA_OPT: -XX:-UseContainerSupport
+    ports:
+      - "8848:8848"    # Main HTTP port
+      - "9848:9848"    # gRPC port (required for Nacos 2.x)
+      - "9849:9849"    # gRPC port for cluster mode
+    volumes:
+      - nacos_data:/home/nacos/data
+      - nacos_logs:/home/nacos/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - meowflow-network
+
+  # RabbitMQ 3.12 with delayed-message-exchange plugin
+  rabbitmq:
+    build:
+      context: .
+      dockerfile: RabbitMQ.Dockerfile
+    container_name: meowflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - meowflow-network
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: meowflow-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # API port
+      - "9001:9001"   # Console port
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - meowflow-network
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  minio_data:
+    driver: local
+  nacos_data:
+    driver: local
+  nacos_logs:
+    driver: local
+
+# Network
+networks:
+  meowflow-network:
+    driver: bridge
+

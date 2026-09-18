@@ -1,0 +1,195 @@
+server:
+  port: 8080
+  compression:
+    enabled: true
+    mime-types: application/json,text/plain,text/html
+
+spring:
+  application:
+    name: meowflow-gateway
+  profiles:
+    active: dev
+  config:
+    import: optional:classpath:common-defaults.yml
+  main:
+    web-application-type: reactive
+    allow-circular-references: true
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+  # Nacos 服务发现 + 配置中心
+  cloud:
+    nacos:
+      discovery:
+        enabled: true
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        weight: 100
+      config:
+        enabled: true
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yml
+        refresh-enabled: true
+        import-check:
+          enabled: false
+
+    # 路由规则
+    gateway:
+      discovery:
+        locator:
+          enabled: true          # 开启自动根据服务名路由
+          lower-case-service-id: true
+      routes:
+        # 用户服务
+        - id: meowflow-user
+          uri: "${MEOWFLOW_USER_URI:lb://meowflow-user}"
+          predicates:
+            - Path=/user/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args:
+                maxSize: 10MB
+        # 工作流服务
+        - id: meowflow-workflow
+          uri: "${MEOWFLOW_WORKFLOW_URI:lb://meowflow-workflow}"
+          predicates:
+            - Path=/workflow/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args:
+                maxSize: 25MB
+        # 执行器服务
+        - id: meowflow-executor
+          uri: "${MEOWFLOW_EXECUTOR_URI:lb://meowflow-executor}"
+          predicates:
+            - Path=/executor/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args:
+                maxSize: 20MB
+        # 模板服务
+        - id: meowflow-template
+          uri: "${MEOWFLOW_TEMPLATE_URI:lb://meowflow-template}"
+          predicates:
+            - Path=/template/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args:
+                maxSize: 10MB
+        # 监控服务
+        - id: meowflow-monitor
+          uri: "${MEOWFLOW_MONITOR_URI:lb://meowflow-monitor}"
+          predicates:
+            - Path=/monitor/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args:
+                maxSize: 10MB
+        # AI 基础设施服务
+        - id: meowflow-infra
+          uri: "${MEOWFLOW_INFRA_URI:lb://meowflow-infra}"
+          predicates:
+            - Path=/infra/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args:
+                maxSize: 50MB
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+  # Redis（限流计数）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+          max-wait: 5000ms
+
+# Sa-Token 配置
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: 86400
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-log: false
+
+# Sentinel 配置
+sentinel:
+  # 配置控制台地址
+  dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+  transport:
+    port: 8719
+    dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+  # 网关流控规则持久化到 Nacos
+  datasource:
+    flow:
+      nacos:
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        data-id: ${spring.application.name}-flow-rules
+        group-id: SENTINEL_GROUP
+        rule-type: gw-flow
+        data-type: json
+    api:
+      nacos:
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        data-id: ${spring.application.name}-api-rules
+        group-id: SENTINEL_GROUP
+        rule-type: gw-api
+        data-type: json
+  # 关闭 Sentinel 健康检查（与 actuator 冲突）
+  filter:
+    enabled: true
+
+# 监控配置
+management:
+  health:
+    redis:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.meowflow: DEBUG
+    org.springframework.cloud.gateway: INFO
+    com.alibaba.cloud.sentinel: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"

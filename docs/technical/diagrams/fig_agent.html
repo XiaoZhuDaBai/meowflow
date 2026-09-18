@@ -1,0 +1,100 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;color:#2b2b2b}
+.zone{position:absolute;border-radius:14px;z-index:1}
+.zonehead{position:absolute;z-index:2;color:#fff;font-weight:700;font-size:15.5px;display:flex;align-items:center;padding-left:13px;letter-spacing:.5px;border-radius:12px 12px 0 0}
+.box{position:absolute;background:#fff;border:1.5px solid #c9ccd1;border-radius:9px;padding:7px 9px;font-size:12.2px;line-height:1.5;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.box .bt{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.box.dash{border-style:dashed;background:#fcfcfc}
+.box .ln{padding-left:2px}
+.hb{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:800;color:#37474f;background:#fff}
+.ah{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:700;color:#fff}
+svg{position:absolute;left:0;top:0;width:'+W+'px;height:'+H+'px;z-index:5;pointer-events:none}
+.ph{position:absolute;border-radius:8px;color:#fff;text-align:center;padding:5px 3px;font-size:12px;line-height:1.35;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ph b{display:block;font-size:13.5px}
+.life{position:absolute;border-left:1.5px dashed #c3c9cf;z-index:1}
+.msg{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e5e9;border-radius:9px;font-size:11.8px;padding:1px 6px;text-align:center;z-index:4;box-shadow:0 1px 2px rgba(0,0,0,.07);white-space:nowrap}
+.num{position:absolute;width:19px;height:19px;border-radius:50%;background:#455a64;color:#fff;font-size:11.5px;text-align:center;line-height:19px;z-index:6;font-weight:700}
+.leg{position:absolute;font-size:12.6px;line-height:19px;color:#333}
+.leg b.n{display:inline-block;width:26px;color:#455a64}
+</style></head><body><div style="position:relative;width:'+W+'px;height:'+H+'px">
+<div style="position:absolute;left:0;top:12px;width:2100px;text-align:center"><div style="font-size:28px;font-weight:800;color:#263238">④ Agent 系统 —— 独立全景图</div><div style="font-size:13.5px;color:#777;margin-top:3px">Agent 节点(function-calling / JSON-ReAct) + MCP 工具层(stdio/sse) + Chatflow 会话承载 + 规划中原语（据 meowflow-workflow AgentExecutor + meowflow-infra mcp/intent）</div></div>
+<div class="zone" data-name="zL" style="left:40px;top:150px;width:1000px;height:610px;background:#f0f6ff;border:2px solid #1e88e5"></div>
+<div class="zonehead" data-name="zLH" style="left:40px;top:150px;width:1000px;height:30px;background:#1e88e5">Agent 节点（引擎内执行器 ai.AgentExecutor）</div>
+<div class="zone" data-name="zR" style="left:1060px;top:150px;width:1000px;height:610px;background:#f0f6ff;border:2px solid #1e88e5"></div>
+<div class="zonehead" data-name="zRH" style="left:1060px;top:150px;width:1000px;height:30px;background:#1e88e5">MCP 工具层 + Agent 原语</div>
+<div class="zone" data-name="zB" style="left:40px;top:780px;width:2020px;height:360px;background:#f0f6ff;border:2px solid #1e88e5"></div>
+<div class="zonehead" data-name="zBH" style="left:40px;top:780px;width:2020px;height:30px;background:#1e88e5">会话承载：Chatflow + 输出 + 线程池/编排形态</div>
+<div class="box " data-name="A1" style="left:54px;top:196px;width:972px;height:262px"><span class="bt">AgentExecutor（extends AbstractAIExecutor）</span><div class="ln">配置: strategy(function-calling | json) · query/instruction</div><div class="ln">tools 过滤串 · maxIterations(默认5)</div><div class="ln">executeNative(function-calling 主路径):</div><div class="ln">buildToolSchemas ← MCPToolService.getAllTools()</div><div class="ln">循环: complete(extraParams={tools, tool_choice:"auto"})</div><div class="ln">→ 解析 response.toolCalls → 逐个执行 → 回填</div><div class="ln">JSON-ReAct 备选: LLM 输出 {action:"tool"|"final",</div><div class="ln">name, arguments, answer} 文本协议驱动</div><div class="ln">工具异常捕获为 {error} 不中断循环</div></div>
+<div class="box " data-name="A2" style="left:54px;top:474px;width:972px;height:150px"><span class="bt">ToolExecutor（显式工具节点）</span><div class="ln">手动调用单个 MCP 工具(name+arguments)</div><div class="ln">与 Agent 复用 MCPToolService.executeTool</div><div class="ln">输入支持 ${} 变量解析 · 输出结构化结果</div><div class="ln">用于"指定工具"而非"自主选择"的场景</div></div>
+<div class="box " data-name="A3" style="left:54px;top:640px;width:972px;height:106px"><span class="bt">输出契约</span><div class="ln">{text, answer, toolOutputs[], reasoning[],</div><div class="ln">iterations, strategy} → 下游 LLM/Answer 节点</div><div class="ln">withCostToken(iterations*100) · 输出可持久化</div></div>
+<div class="box " data-name="M1" style="left:1074px;top:196px;width:460px;height:200px"><span class="bt">MCPToolRegistry（注册中心）</span><div class="ln">ConcurrentHashMap tools + executors</div><div class="ln">registerTool: 按 adapterType 建执行器</div><div class="ln">unregisterTool · getTool/getAllTools</div><div class="ln">getToolsByProvider · enable/disable</div><div class="ln">execute(toolName, params) → 结果</div></div>
+<div class="box " data-name="M3" style="left:1554px;top:196px;width:470px;height:200px"><span class="bt">执行器与适配器</span><div class="ln">MCPToolExecutor 接口: execute/getTool/isHealthy</div><div class="ln">createExecutor switch:</div><div class="ln">stdio → StdioAdapter(本地命令子进程)</div><div class="ln">sse → SseAdapter(远程 HTTP/SSE)</div><div class="ln">headers/endpoint 透传 · 参数序列化</div></div>
+<div class="box " data-name="M2" style="left:1074px;top:414px;width:460px;height:150px"><span class="bt">MCPTool 描述结构</span><div class="ln">name/description/provider</div><div class="ln">adapterType: stdio|sse · endpoint · headers</div><div class="ln">parameters[]: name/type/description/</div><div class="ln">required/defaultValue · enabled 开关</div><div class="ln">MCPTool.of(name,desc,provider,adapterType)</div></div>
+<div class="box " data-name="M4" style="left:1554px;top:414px;width:470px;height:150px"><span class="bt">Agent 原语（虚线·规划中）</span><div class="ln">IntentClassifier: LLM 意图树分类(Redis 缓存 7d)</div><div class="ln">getTopIntent(置信度≥0.3) · isChitchat(闲聊识别)</div><div class="ln">LLMMcpParameterExtractor: 抽取 JSON 参数</div><div class="ln">类型转换(int/number/bool)+必填校验</div><div class="ln">当前仅测试引用 · 未接入工作流节点</div></div>
+<div class="box " data-name="M5" style="left:1074px;top:582px;width:950px;height:156px"><span class="bt">MCPToolService + REST（门面）</span><div class="ln">registerTool/unregisterTool/getAllTools/getToolsByProvider · executeTool</div><div class="ln">createStdioTool(command) / createSseTool(endpoint, headers)</div><div class="ln">MCPToolController: /api/infra/mcp 注册/注销</div><div class="ln">注意: 工具注册在内存(无 DB 持久化 · 重启丢失)</div><div class="ln">虚线注明: 工具仓库持久化为演进方向</div></div>
+<div class="box " data-name="B1" style="left:54px;top:826px;width:640px;height:180px"><span class="bt">Chatflow 会话式助手</span><div class="ln">ChatflowController.chat(workflowId, conversationId, msg)</div><div class="ln">= 执行一条"消息触发"的工作流(Chatflow)</div><div class="ln">MessageTriggerExecutor: 提取 text/sender/keyword</div><div class="ln">ChatflowSessionStore: Redis chatflow:session:{conv}</div><div class="ln">history(role,content) 多轮注入 → 记忆</div></div>
+<div class="box " data-name="B2" style="left:714px;top:826px;width:640px;height:180px"><span class="bt">典型编排形态（上层产品=工作流）</span><div class="ln">消息触发 → 会话历史注入 → LLM/知识检索(RAG)</div><div class="ln">→ Agent(工具循环) → Answer 流式返回</div><div class="ln">Agent 节点可与其他三类系统自由组合</div><div class="ln">HumanTask 人工审批可挂起/恢复 Agent 流程</div><div class="ln">"AI 助手"本质是一条 Chatflow 工作流</div></div>
+<div class="box " data-name="B3" style="left:1374px;top:826px;width:640px;height:180px"><span class="bt">线程池与意图语义</span><div class="ln">AIThreadPoolConfig: intentResolveExecutor</div><div class="ln">streamProcessExecutor · memoryLoad · healthCheck</div><div class="ln">Agent 循环跑在 workflowExecutorPool/nodeExecutorPool</div><div class="ln">意图路由语义(规划): 闲聊/知识问答/工具调用分流</div><div class="ln">生成参数缺省 model="gpt-4o" · temperature 0.3</div></div>
+<div class="box " data-name="B4" style="left:54px;top:1022px;width:1960px;height:100px"><span class="bt">现状标注（虚线=规划/未接线）</span><div class="ln">① 运行时主线: AgentExecutor function-calling + MCPToolRegistry(stdio/sse) 已可用 · ② IntentClassifier / LLMMcpParameterExtractor 仅测试引用 · ③ 工具无 DB 持久化 · ④ 多 Agent 编排/记忆向量化为演进方向</div></div>
+<div class="ah" style="top:104px;height:28px;background:#1e88e5">架构视图</div>
+<div class="ah" style="top:1160px;height:28px;background:#546e7a">核心时序 ④ —— 一次 Agent 工具调用循环（function-calling；含 Chatflow 会话记忆）</div>
+<div class="ph" style="left:50px;top:1240px;width:200px;height:64px;background:#546e7a"><b>前端 / 用户</b>Chatflow 消息</div>
+<div class="life" style="left:150px;top:1298px;height:700px"></div>
+<div class="ph" style="left:350px;top:1240px;width:200px;height:64px;background:#1e88e5"><b>引擎 / MessageTrigger</b>Chatflow 调度</div>
+<div class="life" style="left:450px;top:1298px;height:700px"></div>
+<div class="ph" style="left:650px;top:1240px;width:200px;height:64px;background:#1e88e5"><b>AgentExecutor</b>Agent 节点</div>
+<div class="life" style="left:750px;top:1298px;height:700px"></div>
+<div class="ph" style="left:945px;top:1240px;width:210px;height:64px;background:#8e24aa"><b>ChatModelGateway</b>③ 多模型路由</div>
+<div class="life" style="left:1050px;top:1298px;height:700px"></div>
+<div class="ph" style="left:1250px;top:1240px;width:200px;height:64px;background:#1e88e5"><b>MCPToolService</b>+Registry</div>
+<div class="life" style="left:1350px;top:1298px;height:700px"></div>
+<div class="ph" style="left:1545px;top:1240px;width:210px;height:64px;background:#42a5f5"><b>MCP 适配器</b>stdio/sse → 工具</div>
+<div class="life" style="left:1650px;top:1298px;height:700px"></div>
+<div class="ph" style="left:1865px;top:1240px;width:170px;height:64px;background:#546e7a"><b>会话 Redis</b>ChatflowSessionStore</div>
+<div class="life" style="left:1950px;top:1298px;height:700px"></div>
+<div class="msg" style="left:300px;top:1330px">1. Chatflow 消息</div>
+<div class="num" style="left:139px;top:1320px">1</div>
+<div class="msg" style="left:1200px;top:1377px">2. 取/建会话</div>
+<div class="num" style="left:439px;top:1367px">2</div>
+<div class="msg" style="left:600px;top:1424px">3. 推进至 AGENT 节点</div>
+<div class="num" style="left:439px;top:1414px">3</div>
+<div class="msg" style="left:912px;top:1471px">4. 构建 toolSchemas</div>
+<div class="num" style="left:771px;top:1461px">4</div>
+<div class="msg" style="left:900px;top:1518px">5. complete(query,tools)</div>
+<div class="num" style="left:739px;top:1508px">5</div>
+<div class="msg" style="left:900px;top:1565px">6. tool_calls 返回</div>
+<div class="num" style="left:1039px;top:1555px">6</div>
+<div class="msg" style="left:1050px;top:1612px">7. executeTool(name,args)</div>
+<div class="num" style="left:739px;top:1602px">7</div>
+<div class="msg" style="left:1500px;top:1659px">8. 适配器执行</div>
+<div class="num" style="left:1339px;top:1649px">8</div>
+<div class="msg" style="left:1500px;top:1706px">9. 工具结果</div>
+<div class="num" style="left:1639px;top:1696px">9</div>
+<div class="msg" style="left:1050px;top:1753px">10. 结果回传</div>
+<div class="num" style="left:1339px;top:1743px">10</div>
+<div class="msg" style="left:912px;top:1800px">11. 回填并循环</div>
+<div class="num" style="left:771px;top:1790px">11</div>
+<div class="msg" style="left:600px;top:1847px">12. 最终答案</div>
+<div class="num" style="left:739px;top:1837px">12</div>
+<div class="msg" style="left:1200px;top:1894px">13. 记忆持久化</div>
+<div class="num" style="left:439px;top:1884px">13</div>
+<div class="msg" style="left:300px;top:1941px">14. 返回回答</div>
+<div class="num" style="left:439px;top:1931px">14</div>
+<svg viewBox="0 0 2100 2320"><defs><marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#455a64"/></marker><marker id="ard" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#78909c"/></marker><path d="M 1026 330 L 1072 330" fill="none" stroke="#1e88e5" stroke-width="2"  marker-end="url(#ar)"/><path d="M 1050 700 L 1050 778" fill="none" stroke="#1e88e5" stroke-width="1.8" stroke-dasharray="6,5" marker-end="url(#ard)"/><path d="M 150 1330 L 450 1330" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 450 1377 L 1950 1377" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 450 1424 L 750 1424" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 776 1471 L 850 1471" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 750 1518 L 1050 1518" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1050 1565 L 750 1565" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 750 1612 L 1350 1612" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1350 1659 L 1650 1659" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1650 1706 L 1350 1706" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 1350 1753 L 750 1753" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/><path d="M 776 1800 L 850 1800" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 750 1847 L 450 1847" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 450 1894 L 1950 1894" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 450 1941 L 150 1941" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/></svg>
+<div style="position:absolute;left:40px;top:2040px;width:2020px;height:236px;border:1.5px solid #d0d3d8;border-radius:12px;background:#fafbfc"></div>
+<div style="position:absolute;left:58px;top:2050px;font-size:14.5px;font-weight:800;color:#37474f">核心时序步骤说明（实线=调用/请求，虚线=返回/响应）</div>
+<div class="leg" style="left:58px;top:2074px;width:986px"><b class="n">1.</b> Chatflow 消息进入</div>
+<div class="leg" style="left:1050px;top:2074px;width:986px"><b class="n">2.</b> 取/建 Redis 会话(多轮记忆)</div>
+<div class="leg" style="left:58px;top:2096px;width:986px"><b class="n">3.</b> 引擎推进到 AGENT 节点</div>
+<div class="leg" style="left:1050px;top:2096px;width:986px"><b class="n">4.</b> 构建 MCP 工具 schemas</div>
+<div class="leg" style="left:58px;top:2118px;width:986px"><b class="n">5.</b> 携带 tools 请求 LLM</div>
+<div class="leg" style="left:1050px;top:2118px;width:986px"><b class="n">6.</b> LLM 返回 tool_calls</div>
+<div class="leg" style="left:58px;top:2140px;width:986px"><b class="n">7.</b> 逐个执行 MCP 工具</div>
+<div class="leg" style="left:1050px;top:2140px;width:986px"><b class="n">8.</b> stdio/sse 适配器执行</div>
+<div class="leg" style="left:58px;top:2162px;width:986px">9-10. 工具结果回传 Agent</div>
+<div class="leg" style="left:1050px;top:2162px;width:986px"><b class="n">11.</b> 回填消息并循环(≤5轮)</div>
+<div class="leg" style="left:58px;top:2184px;width:986px"><b class="n">12.</b> 输出最终答案</div>
+<div class="leg" style="left:1050px;top:2184px;width:986px"><b class="n">13.</b> 会话历史写回 Redis</div>
+<div class="leg" style="left:58px;top:2206px;width:986px"><b class="n">14.</b> 返回回答+SSE 实时</div>
+</div></body></html>

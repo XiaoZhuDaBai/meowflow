@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>喵流 - AI工作流自动化平台</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* ========== 变量定义 ========== */
+        :root {
+            /* 主题色 */
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --primary-bg: #eef2ff;
+
+            /* 辅助色 */
+            --success: #10b981;
+            --success-bg: #d1fae5;
+            --warning: #f59e0b;
+            --warning-bg: #fef3c7;
+            --danger: #ef4444;
+            --danger-bg: #fee2e2;
+            --info: #3b82f6;
+            --info-bg: #dbeafe;
+
+            /* 中性色 */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --bg-dark: #0f172a;
+            --bg-canvas: #f8fafc;
+
+            /* 文字 */
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-tertiary: #94a3b8;
+            --text-inverse: #ffffff;
+
+            /* 边框 */
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+
+            /* 阴影 */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1);
+
+            /* 圆角 */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+
+            /* 节点颜色 */
+            --node-trigger: #8b5cf6;
+            --node-ai: #3b82f6;
+            --node-flow: #10b981;
+            --node-tool: #f59e0b;
+            --node-notify: #ec4899;
+        }
+
+        /* ========== 基础样式重置 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        /* ========== 主布局 ========== */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ========== 顶部导航栏 ========== */
+        .header {
+            height: 56px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 24px;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 4px;
+        }
+
+        .nav-item {
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--primary-bg);
+            color: var(--primary);
+        }
+
+        .header-spacer {
+            flex: 1;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-btn {
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .header-btn.primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .header-btn.primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .header-btn.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .header-btn.secondary:hover {
+            background: var(--border);
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* ========== 主内容区 ========== */
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ========== 左侧面板 ========== */
+        .left-panel {
+            width: 280px;
+            background: var(--bg-primary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .panel-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .panel-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .panel-action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel-action-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* ========== 搜索框 ========== */
+        .search-box {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            background: var(--bg-secondary);
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            background: var(--bg-primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-wrapper {
+            position: relative;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+        }
+
+        /* ========== 工作流列表 ========== */
+        .workflow-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .workflow-item {
+            padding: 12px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+            border: 2px solid transparent;
+        }
+
+        .workflow-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .workflow-item.active {
+            background: var(--primary-bg);
+            border-color: var(--primary);
+        }
+
+        .workflow-item-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .workflow-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .workflow-icon.customer-service {
+            background: var(--node-trigger);
+            color: white;
+        }
+
+        .workflow-icon.hr {
+            background: var(--node-ai);
+            color: white;
+        }
+
+        .workflow-icon.content {
+            background: var(--node-flow);
+            color: white;
+        }
+
+        .workflow-icon.default {
+            background: var(--node-tool);
+            color: white;
+        }
+
+        .workflow-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .workflow-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .workflow-meta {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .workflow-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .workflow-status.running {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .workflow-status.draft {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .workflow-status.stopped {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .workflow-stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .workflow-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* ========== 中间画布区域 ========== */
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-canvas);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-toolbar {
+            height: 48px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding-right: 12px;
+            border-right: 1px solid var(--border);
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+
+        .toolbar-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .toolbar-btn.active {
+            background: var(--primary-bg);
+            color: var(--primary);
+        }
+
+        .toolbar-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .toolbar-spacer {
+            flex: 1;
+        }
+
+        .zoom-display {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            padding: 4px 8px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            min-width: 50px;
+            text-align: center;
+        }
+
+        /* ========== 画布 ========== */
+        .canvas {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-image:
+                radial-gradient(circle, var(--border) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .canvas-content {
+            position: absolute;
+            width: 4000px;
+            height: 4000px;
+            left: -2000px;
+            top: -2000px;
+            transform-origin: center center;
+        }
+
+        /* ========== 节点 ========== */
+        .node {
+            position: absolute;
+            min-width: 200px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            cursor: move;
+            transition: box-shadow 0.2s, transform 0.1s;
+            border: 2px solid var(--border);
+        }
+
+        .node:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .node.selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .node-header {
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .node-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .node-icon.trigger { background: var(--node-trigger); }
+        .node-icon.ai { background: var(--node-ai); }
+        .node-icon.flow { background: var(--node-flow); }
+        .node-icon.tool { background: var(--node-tool); }
+        .node-icon.notify { background: var(--node-notify); }
+
+        .node-title {
+            flex: 1;
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .node-body {
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border-radius: 0 0 var(--radius-md) var(--radius-md);
+        }
+
+        .node-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .node-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        /* ========== 连接线 ========== */
+        .edge {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .edge-line {
+            fill: none;
+            stroke: var(--border);
+            stroke-width: 2;
+        }
+
+        .edge.selected .edge-line {
+            stroke: var(--primary);
+        }
+
+        .edge-label {
+            position: absolute;
+            background: var(--bg-primary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            box-shadow: var(--shadow-sm);
+            transform: translate(-50%, -50%);
+        }
+
+        /* ========== 右侧配置面板 ========== */
+        .right-panel {
+            width: 320px;
+            background: var(--bg-primary);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .config-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .config-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .config-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .config-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .config-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .config-section {
+            margin-bottom: 20px;
+        }
+
+        .config-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .config-form-item {
+            margin-bottom: 16px;
+        }
+
+        .config-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .config-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .config-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .config-textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            outline: none;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .config-textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .config-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            outline: none;
+            background: var(--bg-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .config-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .config-hint {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        /* ========== 变量标签 ========== */
+        .variable-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .variable-tag {
+            padding: 4px 8px;
+            background: var(--primary-bg);
+            color: var(--primary);
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .variable-tag:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* ========== 底部面板 ========== */
+        .bottom-panel {
+            height: 200px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .bottom-panel.collapsed {
+            height: 40px;
+        }
+
+        .bottom-panel-header {
+            height: 40px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+        }
+
+        .bottom-panel-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bottom-panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+        }
+
+        .log-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 6px 0;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: var(--text-tertiary);
+            font-family: monospace;
+            flex-shrink: 0;
+        }
+
+        .log-type {
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .log-type.info {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+
+        .log-type.success {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .log-type.error {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .log-type.warning {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+
+        .log-message {
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        /* ========== 节点选择面板 ========== */
+        .node-palette {
+            position: absolute;
+            left: 300px;
+            top: 20px;
+            width: 260px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xl);
+            border: 1px solid var(--border);
+            z-index: 100;
+            display: none;
+        }
+
+        .node-palette.visible {
+            display: block;
+        }
+
+        .node-palette-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .node-palette-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .node-palette-close {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+        }
+
+        .node-palette-close:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .node-palette-content {
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .node-category {
+            margin-bottom: 16px;
+        }
+
+        .node-category:last-child {
+            margin-bottom: 0;
+        }
+
+        .node-category-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        .node-items {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .palette-node {
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            cursor: grab;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .palette-node:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--primary);
+        }
+
+        .palette-node:active {
+            cursor: grabbing;
+        }
+
+        .palette-node-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        .palette-node-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* ========== 模态框 ========== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-primary);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            width: 500px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.visible .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            font-size: 18px;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* ========== Toast ========== */
+        .toast-container {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 1100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+        }
+
+        .toast.visible {
+            transform: translateX(0);
+        }
+
+        .toast-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-icon {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .toast.error .toast-icon {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .toast.info .toast-icon {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        /* ========== 空状态 ========== */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+
+        .empty-state-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .empty-state-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        /* ========== 统计卡片 ========== */
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+        }
+
+        .stat-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .stat-icon.primary { background: var(--primary-bg); color: var(--primary); }
+        .stat-icon.success { background: var(--success-bg); color: var(--success); }
+        .stat-icon.warning { background: var(--warning-bg); color: var(--warning); }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            color: var(--text-tertiary);
+        }
+
+        /* ========== 快捷方式提示 ========== */
+        .shortcut-hint {
+            position: absolute;
+            bottom: 220px;
+            right: 340px;
+            background: var(--bg-dark);
+            color: var(--text-inverse);
+            padding: 8px 12px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            opacity: 0.8;
+            display: none;
+        }
+
+        .shortcut-hint.visible {
+            display: block;
+        }
+
+        .shortcut-key {
+            display: inline-block;
+            padding: 2px 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <span>喵流</span>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-item active">
+                    <i class="fas fa-project-diagram"></i>
+                    工作流
+                </div>
+                <div class="nav-item">
+                    <i class="fas fa-puzzle-piece"></i>
+                    模板
+                </div>
+                <div class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    统计
+                </div>
+                <div class="nav-item">
+                    <i class="fas fa-cog"></i>
+                    设置
+                </div>
+            </nav>
+
+            <div class="header-spacer"></div>
+
+            <div class="header-actions">
+                <button class="header-btn secondary" onclick="showHelp()">
+                    <i class="fas fa-question-circle"></i>
+                    帮助
+                </button>
+                <button class="header-btn primary" onclick="showNewWorkflowModal()">
+                    <i class="fas fa-plus"></i>
+                    新建工作流
+                </button>
+                <div class="user-avatar">李</div>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧面板 -->
+            <aside class="left-panel">
+                <div class="panel-header">
+                    <span class="panel-title">我的工作流</span>
+                    <div class="panel-actions">
+                        <button class="panel-action-btn" title="刷新">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="panel-action-btn" title="筛选">
+                            <i class="fas fa-filter"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="search-box">
+                    <div class="search-wrapper">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" class="search-input" placeholder="搜索工作流...">
+                    </div>
+                </div>
+
+                <div class="workflow-list">
+                    <div class="workflow-item active" onclick="selectWorkflow(1)">
+                        <div class="workflow-item-header">
+                            <div class="workflow-icon customer-service">
+                                <i class="fas fa-headset"></i>
+                            </div>
+                            <div class="workflow-info">
+                                <div class="workflow-name">智能客服工单处理</div>
+                                <div class="workflow-meta">客服 · 今天 14:30 更新</div>
+                            </div>
+                            <span class="workflow-status running">
+                                <span class="node-status-dot"></span>
+                                运行中
+                            </span>
+                        </div>
+                        <div class="workflow-stats">
+                            <div class="workflow-stat">
+                                <i class="fas fa-play-circle"></i>
+                                1,234 执行
+                            </div>
+                            <div class="workflow-stat">
+                                <i class="fas fa-check-circle"></i>
+                                98.5% 成功
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="workflow-item" onclick="selectWorkflow(2)">
+                        <div class="workflow-item-header">
+                            <div class="workflow-icon hr">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div class="workflow-info">
+                                <div class="workflow-name">HR简历智能筛选</div>
+                                <div class="workflow-meta">HR · 昨天 10:00 更新</div>
+                            </div>
+                            <span class="workflow-status draft">
+                                <i class="fas fa-edit"></i>
+                                草稿
+                            </span>
+                        </div>
+                        <div class="workflow-stats">
+                            <div class="workflow-stat">
+                                <i class="fas fa-play-circle"></i>
+                                12 执行
+                            </div>
+                            <div class="workflow-stat">
+                                <i class="fas fa-check-circle"></i>
+                                100% 成功
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="workflow-item" onclick="selectWorkflow(3)">
+                        <div class="workflow-item-header">
+                            <div class="workflow-icon content">
+                                <i class="fas fa-pen-fancy"></i>
+                            </div>
+                            <div class="workflow-info">
+                                <div class="workflow-name">产品文案批量生成</div>
+                                <div class="workflow-meta">运营 · 3天前 更新</div>
+                            </div>
+                            <span class="workflow-status stopped">
+                                <i class="fas fa-stop-circle"></i>
+                                已停止
+                            </span>
+                        </div>
+                        <div class="workflow-stats">
+                            <div class="workflow-stat">
+                                <i class="fas fa-play-circle"></i>
+                                567 执行
+                            </div>
+                            <div class="workflow-stat">
+                                <i class="fas fa-check-circle"></i>
+                                95.2% 成功
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="workflow-item" onclick="selectWorkflow(4)">
+                        <div class="workflow-item-header">
+                            <div class="workflow-icon default">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="workflow-info">
+                                <div class="workflow-name">会议纪要自动整理</div>
+                                <div class="workflow-meta">行政 · 1周前 更新</div>
+                            </div>
+                            <span class="workflow-status running">
+                                <span class="node-status-dot"></span>
+                                运行中
+                            </span>
+                        </div>
+                        <div class="workflow-stats">
+                            <div class="workflow-stat">
+                                <i class="fas fa-play-circle"></i>
+                                89 执行
+                            </div>
+                            <div class="workflow-stat">
+                                <i class="fas fa-check-circle"></i>
+                                97.8% 成功
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="workflow-item" onclick="selectWorkflow(5)">
+                        <div class="workflow-item-header">
+                            <div class="workflow-icon customer-service">
+                                <i class="fas fa-envelope-open-text"></i>
+                            </div>
+                            <div class="workflow-info">
+                                <div class="workflow-name">用户反馈智能分析</div>
+                                <div class="workflow-meta">运营 · 2周前 更新</div>
+                            </div>
+                            <span class="workflow-status running">
+                                <span class="node-status-dot"></span>
+                                运行中
+                            </span>
+                        </div>
+                        <div class="workflow-stats">
+                            <div class="workflow-stat">
+                                <i class="fas fa-play-circle"></i>
+                                2,345 执行
+                            </div>
+                            <div class="workflow-stat">
+                                <i class="fas fa-check-circle"></i>
+                                99.1% 成功
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 中间画布区域 -->
+            <main class="canvas-container">
+                <!-- 统计栏 -->
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <div class="stat-icon primary">
+                            <i class="fas fa-play"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">1,234</div>
+                            <div class="stat-label">今日执行</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon success">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">0.8s</div>
+                            <div class="stat-label">平均耗时</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon warning">
+                            <i class="fas fa-coins"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value">¥12.45</div>
+                            <div class="stat-label">今日成本</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工具栏 -->
+                <div class="canvas-toolbar">
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" title="撤销 (Ctrl+Z)">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button class="toolbar-btn" title="重做 (Ctrl+Y)">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                    </div>
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" title="缩放至适应">
+                            <i class="fas fa-compress-arrows-alt"></i>
+                        </button>
+                        <button class="toolbar-btn" title="放大">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button class="toolbar-btn" title="缩小">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <span class="zoom-display">100%</span>
+                    </div>
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" title="布局">
+                            <i class="fas fa-project-diagram"></i>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-spacer"></div>
+
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" onclick="toggleNodePalette()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="toolbar-btn primary" onclick="testRun()">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="publishWorkflow()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="toggleBottomPanel()">
+                            <i class="fas fa-terminal"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 画布 -->
+                <div class="canvas" id="canvas">
+                    <div class="canvas-content" id="canvasContent">
+                        <!-- 开始节点 -->
+                        <div class="node" id="node-start" style="left: 50%; top: 100px; transform: translateX(-50%);">
+                            <div class="node-header">
+                                <div class="node-icon trigger">
+                                    <i class="fas fa-play"></i>
+                                </div>
+                                <span class="node-title">Webhook 触发</span>
+                            </div>
+                            <div class="node-body">
+                                <div class="node-status">
+                                    <span class="node-status-dot"></span>
+                                    等待触发
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI 分类节点 -->
+                        <div class="node" style="left: 50%; top: 280px; transform: translateX(-50%);">
+                            <div class="node-header">
+                                <div class="node-icon ai">
+                                    <i class="fas fa-brain"></i>
+                                </div>
+                                <span class="node-title">AI 问题分类</span>
+                            </div>
+                            <div class="node-body">
+                                <div class="node-status">
+                                    <span class="node-status-dot"></span>
+                                    GPT-4o
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 条件分支 -->
+                        <div class="node" style="left: 50%; top: 460px; transform: translateX(-50%);">
+                            <div class="node-header">
+                                <div class="node-icon flow">
+                                    <i class="fas fa-code-branch"></i>
+                                </div>
+                                <span class="node-title">优先级判断</span>
+                            </div>
+                            <div class="node-body">
+                                <div class="node-status">
+                                    <i class="fas fa-arrow-right" style="color: var(--success)"></i>
+                                    高优先级 → 人工处理
+                                </div>
+                                <div class="node-status" style="margin-top: 4px;">
+                                    <i class="fas fa-arrow-right" style="color: var(--primary)"></i>
+                                    普通问题 → AI 回复
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 人工处理节点 -->
+                        <div class="node" style="left: 200px; top: 640px;">
+                            <div class="node-header">
+                                <div class="node-icon notify">
+                                    <i class="fas fa-user-check"></i>
+                                </div>
+                                <span class="node-title">VIP 人工处理</span>
+                            </div>
+                            <div class="node-body">
+                                <div class="node-status">
+                                    <span class="node-status-dot"></span>
+                                    等待人工
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI 回复节点 -->
+                        <div class="node" style="left: 580px; top: 640px;">
+                            <div class="node-header">
+                                <div class="node-icon ai">
+                                    <i class="fas fa-comment-dots"></i>
+                                </div>
+                                <span class="node-title">AI 自动回复</span>
+                            </div>
+                            <div class="node-body">
+                                <div class="node-status">
+                                    <span class="node-status-dot"></span>
+                                    就绪
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 结束节点 -->
+                        <div class="node" style="left: 50%; top: 820px; transform: translateX(-50%);">
+                            <div class="node-header">
+                                <div class="node-icon flow">
+                                    <i class="fas fa-flag-checkered"></i>
+                                </div>
+                                <span class="node-title">结束</span>
+                            </div>
+                            <div class="node-body">
+                                <div class="node-status">
+                                    <span class="node-status-dot"></span>
+                                    流程结束
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SVG 连接线 -->
+                        <svg class="edge" style="left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;">
+                            <!-- 开始 -> AI分类 -->
+                            <path class="edge-line" d="M 390 180 L 390 230" stroke-dasharray="5,5"/>
+                            <!-- AI分类 -> 条件分支 -->
+                            <path class="edge-line" d="M 390 360 L 390 410"/>
+                            <!-- 条件分支 -> 人工处理 -->
+                            <path class="edge-line" d="M 290 530 Q 200 530 200 580"/>
+                            <!-- 条件分支 -> AI回复 -->
+                            <path class="edge-line" d="M 490 530 Q 580 530 580 580"/>
+                            <!-- 人工处理 -> 结束 -->
+                            <path class="edge-line" d="M 290 720 L 390 770"/>
+                            <!-- AI回复 -> 结束 -->
+                            <path class="edge-line" d="M 580 720 L 490 770"/>
+                        </svg>
+                    </div>
+
+                    <!-- 空状态（隐藏） -->
+                    <div class="empty-state" id="emptyState" style="display: none;">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="empty-state-title">开始创建你的第一个工作流</div>
+                        <div class="empty-state-desc">拖拽节点到画布，或使用模板快速开始</div>
+                        <button class="header-btn primary" onclick="showNewWorkflowModal()">
+                            <i class="fas fa-plus"></i>
+                            新建工作流
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 节点选择面板 -->
+                <div class="node-palette" id="nodePalette">
+                    <div class="node-palette-header">
+                        <span class="node-palette-title">添加节点</span>
+                        <button class="node-palette-close" onclick="toggleNodePalette()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="node-palette-content">
+                        <div class="node-category">
+                            <div class="node-category-title">触发器</div>
+                            <div class="node-items">
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-trigger);">
+                                        <i class="fas fa-play"></i>
+                                    </div>
+                                    <div class="palette-node-name">Webhook</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-trigger);">
+                                        <i class="fas fa-clock"></i>
+                                    </div>
+                                    <div class="palette-node-name">定时触发</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-trigger);">
+                                        <i class="fas fa-file-alt"></i>
+                                    </div>
+                                    <div class="palette-node-name">表单触发</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-trigger);">
+                                        <i class="fas fa-envelope"></i>
+                                    </div>
+                                    <div class="palette-node-name">邮件触发</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="node-category">
+                            <div class="node-category-title">AI 能力</div>
+                            <div class="node-items">
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-ai);">
+                                        <i class="fas fa-brain"></i>
+                                    </div>
+                                    <div class="palette-node-name">LLM 对话</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-ai);">
+                                        <i class="fas fa-tags"></i>
+                                    </div>
+                                    <div class="palette-node-name">AI 分类</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-ai);">
+                                        <i class="fas fa-magic"></i>
+                                    </div>
+                                    <div class="palette-node-name">信息提取</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-ai);">
+                                        <i class="fas fa-compress-alt"></i>
+                                    </div>
+                                    <div class="palette-node-name">文本总结</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="node-category">
+                            <div class="node-category-title">流程控制</div>
+                            <div class="node-items">
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-flow);">
+                                        <i class="fas fa-code-branch"></i>
+                                    </div>
+                                    <div class="palette-node-name">条件分支</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-flow);">
+                                        <i class="fas fa-redo"></i>
+                                    </div>
+                                    <div class="palette-node-name">循环节点</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-flow);">
+                                        <i class="fas fa-clone"></i>
+                                    </div>
+                                    <div class="palette-node-name">并行执行</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-flow);">
+                                        <i class="fas fa-hourglass-half"></i>
+                                    </div>
+                                    <div class="palette-node-name">等待节点</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="node-category">
+                            <div class="node-category-title">工具</div>
+                            <div class="node-items">
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-tool);">
+                                        <i class="fas fa-globe"></i>
+                                    </div>
+                                    <div class="palette-node-name">HTTP 请求</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-tool);">
+                                        <i class="fas fa-database"></i>
+                                    </div>
+                                    <div class="palette-node-name">数据库</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-tool);">
+                                        <i class="fas fa-code"></i>
+                                    </div>
+                                    <div class="palette-node-name">代码执行</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-tool);">
+                                        <i class="fas fa-brackets"></i>
+                                    </div>
+                                    <div class="palette-node-name">变量赋值</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="node-category">
+                            <div class="node-category-title">通知</div>
+                            <div class="node-items">
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-notify);">
+                                        <i class="fab fa-dingding"></i>
+                                    </div>
+                                    <div class="palette-node-name">钉钉通知</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-notify);">
+                                        <i class="fas fa-bell"></i>
+                                    </div>
+                                    <div class="palette-node-name">企业微信</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-notify);">
+                                        <i class="fas fa-envelope"></i>
+                                    </div>
+                                    <div class="palette-node-name">邮件发送</div>
+                                </div>
+                                <div class="palette-node" draggable="true">
+                                    <div class="palette-node-icon" style="background: var(--node-notify);">
+                                        <i class="fas fa-sms"></i>
+                                    </div>
+                                    <div class="palette-node-name">短信通知</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部日志面板 -->
+                <div class="bottom-panel" id="bottomPanel">
+                    <div class="bottom-panel-header" onclick="toggleBottomPanel()">
+                        <div class="bottom-panel-title">
+                            <i class="fas fa-terminal"></i>
+                            执行日志
+                        </div>
+                        <div class="panel-actions">
+                            <button class="panel-action-btn" title="清空日志">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                            <button class="panel-action-btn" id="toggleBottomBtn">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bottom-panel-content">
+                        <div class="log-item">
+                            <span class="log-time">14:30:01</span>
+                            <span class="log-type info">开始</span>
+                            <span class="log-message">工作流开始执行，等待 Webhook 触发...</span>
+                        </div>
+                        <div class="log-item">
+                            <span class="log-time">14:30:01</span>
+                            <span class="log-type success">节点</span>
+                            <span class="log-message">Webhook 触发器：接收到数据 {"text": "我三天前下的订单还没收到"}</span>
+                        </div>
+                        <div class="log-item">
+                            <span class="log-time">14:30:02</span>
+                            <span class="log-type success">节点</span>
+                            <span class="log-message">AI 问题分类：开始处理...</span>
+                        </div>
+                        <div class="log-item">
+                            <span class="log-time">14:30:03</span>
+                            <span class="log-type success">节点</span>
+                            <span class="log-message">AI 问题分类：完成 {"type": "发货问题", "priority": "高", "sentiment": "焦急"}</span>
+                        </div>
+                        <div class="log-item">
+                            <span class="log-time">14:30:03</span>
+                            <span class="log-type info">分支</span>
+                            <span class="log-message">条件判断：priority == "高" → 走左侧分支（VIP 人工处理）</span>
+                        </div>
+                        <div class="log-item">
+                            <span class="log-time">14:30:03</span>
+                            <span class="log-type warning">等待</span>
+                            <span class="log-message">VIP 人工处理：等待人工处理中...</span>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 右侧配置面板 -->
+            <aside class="right-panel">
+                <div class="config-tabs">
+                    <div class="config-tab active" onclick="switchConfigTab('config')">配置</div>
+                    <div class="config-tab" onclick="switchConfigTab('input')">输入</div>
+                    <div class="config-tab" onclick="switchConfigTab('output')">输出</div>
+                </div>
+
+                <div class="config-content" id="configContent">
+                    <div class="config-section">
+                        <div class="config-section-title">基本信息</div>
+                        <div class="config-form-item">
+                            <label class="config-label">节点名称</label>
+                            <input type="text" class="config-input" value="AI 问题分类">
+                        </div>
+                        <div class="config-form-item">
+                            <label class="config-label">节点 ID</label>
+                            <input type="text" class="config-input" value="llm-classify-1" disabled>
+                            <div class="config-hint">节点在流程中的唯一标识</div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-title">AI 模型</div>
+                        <div class="config-form-item">
+                            <label class="config-label">模型选择</label>
+                            <select class="config-select">
+                                <option value="gpt-4o" selected>GPT-4o</option>
+                                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                <option value="claude-3">Claude 3.5 Sonnet</option>
+                                <option value="qwen-plus">通义千问 Plus</option>
+                                <option value="ernie">文心一言 4.0</option>
+                            </select>
+                        </div>
+                        <div class="config-form-item">
+                            <label class="config-label">温度参数</label>
+                            <input type="range" class="config-input" min="0" max="1" step="0.1" value="0.7" style="padding: 0;">
+                            <div class="config-hint">当前值：0.7（创造性与准确性的平衡）</div>
+                        </div>
+                        <div class="config-form-item">
+                            <label class="config-label">最大 Token</label>
+                            <input type="number" class="config-input" value="1000">
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-title">提示词</div>
+                        <div class="config-form-item">
+                            <label class="config-label">System Prompt</label>
+                            <textarea class="config-textarea">你是一个专业的客服问题分类助手。请分析客户的问题，并提取以下信息：
+
+1. 问题类型：发货问题/退款申请/产品质量/物流咨询/其他
+2. 优先级：高/中/低（投诉类为高，咨询类为低）
+3. 客户情绪：满意/一般/不满/愤怒
+
+请以 JSON 格式输出分析结果。</textarea>
+                            <div class="config-hint">定义 AI 的角色和行为</div>
+                        </div>
+                        <div class="config-form-item">
+                            <label class="config-label">用户输入模板</label>
+                            <textarea class="config-textarea">客户问题：
+{{input.text}}
+
+订单信息：
+订单号：{{input.order_id}}
+下单时间：{{input.order_date}}
+商品名称：{{input.product_name}}</textarea>
+                            <div class="variable-tags">
+                                <span class="variable-tag" onclick="insertVariable('input.text')">input.text</span>
+                                <span class="variable-tag" onclick="insertVariable('input.order_id')">input.order_id</span>
+                                <span class="variable-tag" onclick="insertVariable('input.customer_id')">input.customer_id</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-section-title">高级设置</div>
+                        <div class="config-form-item">
+                            <label class="config-label">超时时间（秒）</label>
+                            <input type="number" class="config-input" value="60">
+                        </div>
+                        <div class="config-form-item">
+                            <label class="config-label">重试次数</label>
+                            <select class="config-select">
+                                <option value="0">不重试</option>
+                                <option value="1">重试 1 次</option>
+                                <option value="2" selected>重试 2 次</option>
+                                <option value="3">重试 3 次</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- 新建工作流模态框 -->
+    <div class="modal-overlay" id="newWorkflowModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">新建工作流</h3>
+                <button class="modal-close" onclick="closeNewWorkflowModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="config-form-item">
+                    <label class="config-label">工作流名称</label>
+                    <input type="text" class="config-input" placeholder="例如：智能客服工单处理">
+                </div>
+                <div class="config-form-item">
+                    <label class="config-label">描述（可选）</label>
+                    <textarea class="config-textarea" placeholder="描述这个工作流的功能..." style="min-height: 80px;"></textarea>
+                </div>
+                <div class="config-form-item">
+                    <label class="config-label">分类</label>
+                    <select class="config-select">
+                        <option value="">选择分类</option>
+                        <option value="customer-service">客服</option>
+                        <option value="hr">人力资源</option>
+                        <option value="operation">运营</option>
+                        <option value="content">内容创作</option>
+                        <option value="admin">行政管理</option>
+                        <option value="data">数据分析</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="header-btn secondary" onclick="closeNewWorkflowModal()">取消</button>
+                <button class="header-btn primary" onclick="createWorkflow()">
+                    <i class="fas fa-plus"></i>
+                    创建
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ========== 全局变量 ==========
+        let bottomPanelCollapsed = false;
+        let nodePaletteVisible = false;
+
+        // ========== 左侧面板功能 ==========
+        function selectWorkflow(id) {
+            // 移除所有选中状态
+            document.querySelectorAll('.workflow-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // 添加选中状态
+            event.currentTarget.classList.add('active');
+
+            // 显示 Toast
+            showToast('已切换工作流', 'success');
+        }
+
+        // ========== 画布功能 ==========
+        function toggleNodePalette() {
+            nodePaletteVisible = !nodePaletteVisible;
+            const palette = document.getElementById('nodePalette');
+            palette.classList.toggle('visible', nodePaletteVisible);
+        }
+
+        function testRun() {
+            showToast('开始测试运行...', 'info');
+
+            // 模拟执行过程
+            setTimeout(() => {
+                showToast('测试运行成功！', 'success');
+            }, 1500);
+        }
+
+        function publishWorkflow() {
+            showToast('工作流发布成功！', 'success');
+        }
+
+        // ========== 底部面板功能 ==========
+        function toggleBottomPanel() {
+            bottomPanelCollapsed = !bottomPanelCollapsed;
+            const panel = document.getElementById('bottomPanel');
+            panel.classList.toggle('collapsed', bottomPanelCollapsed);
+
+            const btn = document.getElementById('toggleBottomBtn');
+            btn.innerHTML = bottomPanelCollapsed ? '<i class="fas fa-chevron-up"></i>' : '<i class="fas fa-chevron-down"></i>';
+        }
+
+        // ========== 右侧配置面板功能 ==========
+        function switchConfigTab(tab) {
+            // 移除所有选中状态
+            document.querySelectorAll('.config-tab').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // 添加选中状态
+            event.currentTarget.classList.add('active');
+
+            // 切换内容（这里可以扩展）
+            showToast(`切换到 ${tab === 'config' ? '配置' : tab === 'input' ? '输入' : '输出'} 面板`, 'info');
+        }
+
+        function insertVariable(variable) {
+            showToast(`已插入变量：${variable}`, 'info');
+        }
+
+        // ========== 模态框功能 ==========
+        function showNewWorkflowModal() {
+            document.getElementById('newWorkflowModal').classList.add('visible');
+        }
+
+        function closeNewWorkflowModal() {
+            document.getElementById('newWorkflowModal').classList.remove('visible');
+        }
+
+        function createWorkflow() {
+            closeNewWorkflowModal();
+            showToast('工作流创建成功！', 'success');
+        }
+
+        // ========== Toast 功能 ==========
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            let icon = '';
+            switch(type) {
+                case 'success':
+                    icon = '<i class="fas fa-check"></i>';
+                    break;
+                case 'error':
+                    icon = '<i class="fas fa-times"></i>';
+                    break;
+                default:
+                    icon = '<i class="fas fa-info"></i>';
+            }
+
+            toast.innerHTML = `
+                <div class="toast-icon">${icon}</div>
+                <div class="toast-message">${message}</div>
+            `;
+
+            container.appendChild(toast);
+
+            // 显示动画
+            setTimeout(() => {
+                toast.classList.add('visible');
+            }, 10);
+
+            // 自动隐藏
+            setTimeout(() => {
+                toast.classList.remove('visible');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
+        }
+
+        // ========== 帮助功能 ==========
+        function showHelp() {
+            showToast('帮助文档开发中...', 'info');
+        }
+
+        // ========== 节点拖拽功能（简化版） ==========
+        document.querySelectorAll('.palette-node').forEach(node => {
+            node.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', node.innerText);
+            });
+        });
+
+        // ========== 键盘快捷键 ==========
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+Z 撤销
+            if (e.ctrlKey && e.key === 'z') {
+                showToast('撤销操作', 'info');
+            }
+            // Ctrl+S 保存
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                showToast('保存成功！', 'success');
+            }
+            // Delete 删除
+            if (e.key === 'Delete') {
+                showToast('删除选中节点', 'info');
+            }
+            // Escape 关闭面板
+            if (e.key === 'Escape') {
+                closeNewWorkflowModal();
+                if (nodePaletteVisible) {
+                    toggleNodePalette();
+                }
+            }
+        });
+
+        // ========== 点击外部关闭面板 ==========
+        document.addEventListener('click', (e) => {
+            const palette = document.getElementById('nodePalette');
+            const paletteBtn = document.querySelector('.toolbar-btn i.fa-plus');
+
+            if (nodePaletteVisible && !palette.contains(e.target) && !paletteBtn.contains(e.target)) {
+                // 检查点击的是否是画布区域
+                if (!e.target.closest('.canvas-toolbar')) {
+                    toggleNodePalette();
+                }
+            }
+        });
+
+        // ========== 初始化 ==========
+        console.log('喵流 - AI工作流自动化平台');
+        console.log('版本：1.0.0');
+    </script>
+</body>
+</html>

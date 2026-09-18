@@ -1,0 +1,20 @@
+# meowflow-common 集成测试配置 (真实环境)
+# 使用方式: @ActiveProfiles("integration")
+# 需要: PostgreSQL + Redis 已启动
+
+spring:
+  main:
+    web-application-type: none  # common 模块不启动 Web 容器
+  flyway:
+    enabled: false
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+logging:
+  level:
+    com.meowflow: DEBUG
+    org.springframework.test: INFO

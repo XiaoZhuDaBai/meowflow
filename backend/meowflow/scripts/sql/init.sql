@@ -1,0 +1,2550 @@
+-- =============================================================
+-- MeowFlow canonical database initialization
+-- 由 db/migration/V*.sql 按版本自动生成，请勿手工维护本文件。
+-- =============================================================
+
+-- ===== V1__init_schema.sql =====
+-- =============================================================
+-- V1__init_schema.sql
+-- 喵流 MeowFlow 初始 Schema
+-- 前缀: mf_<module>_<entity>
+-- 创建日期: 2026-07-13
+-- =============================================================
+
+-- ============================================================
+-- M00 系统模块 (mf_sys_*)
+--   组织 / 用户 / 角色 / 权限 / 登录日志 / 审计日志
+-- ============================================================
+
+-- 组织表
+CREATE TABLE mf_sys_org (
+    id              BIGSERIAL PRIMARY KEY,
+    parent_id       BIGINT       DEFAULT 0,
+    name            VARCHAR(64)  NOT NULL,
+    code            VARCHAR(64)  NOT NULL UNIQUE,
+    sort            INT          DEFAULT 0,
+    leader_user_id  BIGINT,
+    phone           VARCHAR(32),
+    email           VARCHAR(128),
+    status          VARCHAR(16)  DEFAULT 'active',
+    remark          VARCHAR(255),
+    deleted         BOOLEAN      DEFAULT FALSE,
+    create_by       BIGINT,
+    create_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    update_by       BIGINT,
+    update_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_sys_org IS '组织表';
+COMMENT ON COLUMN mf_sys_org.parent_id IS '父组织 id,0 表示顶级';
+
+-- 岗位表
+CREATE TABLE mf_sys_post (
+    id          BIGSERIAL PRIMARY KEY,
+    code        VARCHAR(64)  NOT NULL UNIQUE,
+    name        VARCHAR(64)  NOT NULL,
+    sort        INT          DEFAULT 0,
+    status      VARCHAR(16)  DEFAULT 'active',
+    remark      VARCHAR(255),
+    deleted     BOOLEAN      DEFAULT FALSE,
+    create_by   BIGINT,
+    create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_post IS '岗位表';
+
+-- 用户表
+CREATE TABLE mf_sys_user (
+    id             BIGSERIAL PRIMARY KEY,
+    username       VARCHAR(64)  NOT NULL UNIQUE,
+    password       VARCHAR(255) NOT NULL,
+    nickname       VARCHAR(64),
+    email          VARCHAR(128),
+    phone          VARCHAR(32),
+    avatar         VARCHAR(255),
+    real_name      VARCHAR(64),
+    id_card        VARCHAR(32),
+    status         VARCHAR(16)   DEFAULT 'active',
+    last_login_ip  VARCHAR(64),
+    last_login_at  TIMESTAMP,
+    org_id         BIGINT,
+    deleted        BOOLEAN       DEFAULT FALSE,
+    create_by      BIGINT,
+    create_time    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    update_by      BIGINT,
+    update_time    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_sys_user IS '用户表';
+COMMENT ON COLUMN mf_sys_user.password IS 'BCrypt 加密后的密码';
+
+-- 角色表
+CREATE TABLE mf_sys_role (
+    id          BIGSERIAL PRIMARY KEY,
+    code        VARCHAR(64)  NOT NULL UNIQUE,
+    name        VARCHAR(64)  NOT NULL,
+    data_scope  VARCHAR(16)  DEFAULT 'all',
+    sort        INT          DEFAULT 0,
+    status      VARCHAR(16)  DEFAULT 'active',
+    remark      VARCHAR(255),
+    deleted     BOOLEAN      DEFAULT FALSE,
+    create_by   BIGINT,
+    create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_role IS '角色表';
+
+-- 用户-角色关联
+CREATE TABLE mf_sys_user_role (
+    user_id     BIGINT NOT NULL,
+    role_id     BIGINT NOT NULL,
+    org_id      BIGINT DEFAULT 0 NOT NULL,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, role_id, org_id)
+);
+COMMENT ON TABLE mf_sys_user_role IS '用户-角色关联表';
+
+-- 菜单/权限表
+CREATE TABLE mf_sys_permission (
+    id          BIGSERIAL PRIMARY KEY,
+    parent_id   BIGINT       DEFAULT 0,
+    type        VARCHAR(16)  NOT NULL,
+    name        VARCHAR(64)  NOT NULL,
+    code        VARCHAR(128),
+    path        VARCHAR(255),
+    icon        VARCHAR(64),
+    sort        INT          DEFAULT 0,
+    status      VARCHAR(16)  DEFAULT 'active',
+    remark      VARCHAR(255),
+    create_by   BIGINT,
+    create_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_permission IS '权限(菜单/按钮/接口)表';
+
+-- 角色-权限关联
+CREATE TABLE mf_sys_role_permission (
+    role_id        BIGINT NOT NULL,
+    permission_id  BIGINT NOT NULL,
+    PRIMARY KEY (role_id, permission_id)
+);
+COMMENT ON TABLE mf_sys_role_permission IS '角色-权限关联表';
+
+-- 登录日志
+CREATE TABLE mf_sys_login_log (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT,
+    username     VARCHAR(64),
+    ip           VARCHAR(64),
+    user_agent   VARCHAR(512),
+    region       VARCHAR(64),
+    status       VARCHAR(16),
+    message      VARCHAR(255),
+    login_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_sys_login_log IS '登录日志表';
+
+-- 操作审计
+CREATE TABLE mf_sys_audit_log (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT,
+    username     VARCHAR(64),
+    module       VARCHAR(64),
+    action       VARCHAR(64),
+    request_url  VARCHAR(512),
+    method       VARCHAR(8),
+    params       JSONB,
+    result       TEXT,
+    cost_ms      INT,
+    ip           VARCHAR(64),
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_sys_audit_log IS '操作审计日志';
+COMMENT ON COLUMN mf_sys_audit_log.params IS '请求参数 JSONB';
+
+
+-- ============================================================
+-- M01 工作流模块 (mf_wf_*)
+-- ============================================================
+
+-- 工作流分类
+CREATE TABLE mf_wf_category (
+    id          BIGSERIAL PRIMARY KEY,
+    parent_id   BIGINT DEFAULT 0,
+    code        VARCHAR(64) NOT NULL UNIQUE,
+    name        VARCHAR(64) NOT NULL,
+    icon        VARCHAR(255),
+    sort        INT DEFAULT 0,
+    status      VARCHAR(16) DEFAULT 'active',
+    create_by   BIGINT,
+    create_time TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_category IS '工作流分类表';
+
+-- 工作流分组
+CREATE TABLE mf_wf_group (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL,
+    name        VARCHAR(64) NOT NULL,
+    sort        INT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_group IS '工作流分组表(用户私有)';
+
+-- 工作流主表
+CREATE TABLE mf_wf_workflow (
+    id              BIGSERIAL PRIMARY KEY,
+    category_id     BIGINT,
+    group_id        BIGINT,
+    name            VARCHAR(128) NOT NULL,
+    code            VARCHAR(128) UNIQUE,
+    description     TEXT,
+    icon            VARCHAR(255),
+    status          VARCHAR(16)  DEFAULT 'draft',
+    current_version VARCHAR(16)  DEFAULT 'v1',
+    owner_id        BIGINT       NOT NULL,
+    org_id          BIGINT,
+    is_public       BOOLEAN      DEFAULT FALSE,
+    tags            JSONB,
+    stat_total_run  BIGINT       DEFAULT 0,
+    stat_last_run_at TIMESTAMP,
+    deleted         BOOLEAN      DEFAULT FALSE,
+    create_by       BIGINT,
+    create_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    update_by       BIGINT,
+    update_time     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE  mf_wf_workflow IS '工作流主表';
+COMMENT ON COLUMN mf_wf_workflow.tags IS '标签数组';
+
+-- 工作流版本
+CREATE TABLE mf_wf_workflow_version (
+    id            BIGSERIAL PRIMARY KEY,
+    workflow_id   BIGINT  NOT NULL,
+    version       VARCHAR(16) NOT NULL,
+    definition    JSONB   NOT NULL,
+    input_schema  JSONB,
+    output_schema JSONB,
+    dsl_text      TEXT,
+    changelog     TEXT,
+    publish_status VARCHAR(16) DEFAULT 'draft',
+    published_at  TIMESTAMP,
+    published_by  BIGINT,
+    create_by     BIGINT,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(workflow_id, version)
+);
+COMMENT ON TABLE  mf_wf_workflow_version IS '工作流版本表';
+COMMENT ON COLUMN mf_wf_workflow_version.definition IS '节点(nodes) + 连线(edges) JSON';
+
+-- 执行记录
+CREATE TABLE mf_wf_execution (
+    id            BIGSERIAL PRIMARY KEY,
+    workflow_id   BIGINT  NOT NULL,
+    version       VARCHAR(16),
+    trigger_type  VARCHAR(32),
+    trigger_user_id BIGINT,
+    status        VARCHAR(16) DEFAULT 'pending',
+    input         JSONB,
+    output        JSONB,
+    error_message TEXT,
+    cost_ms       BIGINT,
+    cost_token    INT,
+    cost_amount   DECIMAL(10,4),
+    started_at    TIMESTAMP,
+    finished_at   TIMESTAMP,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_execution IS '工作流执行记录表';
+
+-- 节点执行记录
+CREATE TABLE mf_wf_node_execution (
+    id            BIGSERIAL PRIMARY KEY,
+    execution_id  BIGINT  NOT NULL,
+    node_id       VARCHAR(64),
+    node_type     VARCHAR(64),
+    node_name     VARCHAR(128),
+    status        VARCHAR(16) DEFAULT 'pending',
+    input         JSONB,
+    output        JSONB,
+    error_message TEXT,
+    retry_count   INT DEFAULT 0,
+    started_at    TIMESTAMP,
+    finished_at   TIMESTAMP,
+    cost_ms       BIGINT,
+    cost_token    INT,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_node_execution IS '节点级执行明细';
+
+-- 执行日志(流式追加)
+CREATE TABLE mf_wf_execution_log (
+    id           BIGSERIAL PRIMARY KEY,
+    execution_id BIGINT NOT NULL,
+    node_id      VARCHAR(64),
+    level        VARCHAR(16) DEFAULT 'info',
+    message      TEXT,
+    payload      JSONB,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_execution_log IS '执行日志(可分区)';
+
+
+-- ============================================================
+-- M04 模板模块 (mf_tpl_*)
+-- ============================================================
+
+-- 模板主表
+CREATE TABLE mf_tpl_template (
+    id           BIGSERIAL PRIMARY KEY,
+    category_id  BIGINT,
+    name         VARCHAR(128) NOT NULL,
+    description  TEXT,
+    icon         VARCHAR(255),
+    industry     VARCHAR(64),
+    scene        VARCHAR(64),
+    definition   JSONB NOT NULL,
+    version      VARCHAR(16) DEFAULT 'v1',
+    author       VARCHAR(64),
+    author_id    BIGINT,
+    price        DECIMAL(10,2) DEFAULT 0,
+    tags         JSONB,
+    use_count    BIGINT DEFAULT 0,
+    score        DECIMAL(3,2) DEFAULT 5.00,
+    review_status VARCHAR(16) DEFAULT 'pending',
+    reviewed_by  BIGINT,
+    reviewed_at  TIMESTAMP,
+    review_remark VARCHAR(255),
+    status       VARCHAR(16) DEFAULT 'active',
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_tpl_template IS '模板市场主表';
+
+-- 模板评价
+CREATE TABLE mf_tpl_review (
+    id           BIGSERIAL PRIMARY KEY,
+    template_id  BIGINT NOT NULL,
+    user_id      BIGINT NOT NULL,
+    score        DECIMAL(3,2),
+    content      TEXT,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_tpl_review IS '模板评价表';
+
+
+-- ============================================================
+-- M07 监控模块 (mf_mon_*)
+-- ============================================================
+
+-- 告警规则
+CREATE TABLE mf_mon_alert_rule (
+    id           BIGSERIAL PRIMARY KEY,
+    name         VARCHAR(128) NOT NULL,
+    metric       VARCHAR(64)  NOT NULL,
+    condition    VARCHAR(16)  NOT NULL,
+    threshold    DECIMAL(15,4) NOT NULL,
+    duration_s   INT DEFAULT 60,
+    channels     JSONB,
+    webhook      VARCHAR(512),
+    enabled      BOOLEAN DEFAULT TRUE,
+    owner_id     BIGINT,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_mon_alert_rule IS '告警规则表';
+
+-- 告警记录
+CREATE TABLE mf_mon_alert (
+    id           BIGSERIAL PRIMARY KEY,
+    rule_id      BIGINT,
+    metric       VARCHAR(64),
+    value        DECIMAL(15,4),
+    status       VARCHAR(16) DEFAULT 'firing',
+    triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    resolved_at  TIMESTAMP,
+    notify_log   JSONB,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_mon_alert IS '告警事件表';
+
+-- 统计指标(每天一行)
+CREATE TABLE mf_mon_metric_daily (
+    id              BIGSERIAL PRIMARY KEY,
+    metric_date     DATE NOT NULL UNIQUE,
+    wf_total        BIGINT DEFAULT 0,
+    wf_active       BIGINT DEFAULT 0,
+    exec_total      BIGINT DEFAULT 0,
+    exec_success    BIGINT DEFAULT 0,
+    exec_failed     BIGINT DEFAULT 0,
+    exec_avg_ms     INT DEFAULT 0,
+    token_total     BIGINT DEFAULT 0,
+    cost_amount     DECIMAL(12,4) DEFAULT 0,
+    user_total      BIGINT DEFAULT 0,
+    user_active     BIGINT DEFAULT 0,
+    create_time     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_mon_metric_daily IS '每日聚合指标';
+
+
+-- ============================================================
+-- M03 AI 模块 (mf_ai_*)
+-- ============================================================
+
+-- 模型配置
+CREATE TABLE mf_ai_model (
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(64) NOT NULL,
+    provider      VARCHAR(64) NOT NULL,
+    model_type    VARCHAR(32) DEFAULT 'chat',
+    api_base      VARCHAR(255),
+    api_key       VARCHAR(255),
+    enabled       BOOLEAN DEFAULT TRUE,
+    is_default    BOOLEAN DEFAULT FALSE,
+    priority      INT DEFAULT 0,
+    max_tokens    INT,
+    temperature   DECIMAL(3,2) DEFAULT 0.7,
+    timeout_s     INT DEFAULT 60,
+    config        JSONB,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_model IS 'AI 模型配置表';
+
+-- 知识库
+CREATE TABLE mf_ai_knowledge (
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(128) NOT NULL,
+    description   TEXT,
+    embedding_id  BIGINT,
+    chunk_size    INT DEFAULT 500,
+    overlap       INT DEFAULT 50,
+    owner_id      BIGINT,
+    status        VARCHAR(16) DEFAULT 'active',
+    doc_count     BIGINT DEFAULT 0,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_knowledge IS '知识库表';
+
+-- 知识库文档
+CREATE TABLE mf_ai_document (
+    id            BIGSERIAL PRIMARY KEY,
+    kb_id         BIGINT NOT NULL,
+    name          VARCHAR(255) NOT NULL,
+    url           VARCHAR(512),
+    file_type     VARCHAR(32),
+    file_size     BIGINT,
+    status        VARCHAR(16) DEFAULT 'pending',
+    chunk_count   INT DEFAULT 0,
+    error_message TEXT,
+    parse_config  JSONB,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_document IS '知识库文档表';
+
+-- 知识库文档分块 (降级为 BYTEA 以兼容无 pgvector 的环境)
+CREATE TABLE mf_ai_chunk (
+    id            BIGSERIAL PRIMARY KEY,
+    document_id   BIGINT NOT NULL,
+    kb_id         BIGINT NOT NULL,
+    chunk_index   INT,
+    content       TEXT,
+    embedding     BYTEA,
+    token_count   INT,
+    metadata      JSONB,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_chunk IS '知识库文档分块(embedding 字段为 BYTEA,需 pgvector 时改为 vector)';
+
+-- AI 调用记录
+CREATE TABLE mf_ai_invoke_log (
+    id            BIGSERIAL PRIMARY KEY,
+    user_id       BIGINT,
+    execution_id  BIGINT,
+    node_id       VARCHAR(64),
+    model_id      BIGINT,
+    prompt        TEXT,
+    completion    TEXT,
+    prompt_tokens INT,
+    completion_tokens INT,
+    total_tokens  INT,
+    cost_ms       BIGINT,
+    cost_amount   DECIMAL(10,4),
+    status        VARCHAR(16),
+    error_message TEXT,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_ai_invoke_log IS 'AI 调用日志';
+
+
+-- ============================================================
+-- M10 集成模块 (mf_int_*)
+-- ============================================================
+
+-- 集成配置
+CREATE TABLE mf_int_config (
+    id          BIGSERIAL PRIMARY KEY,
+    type        VARCHAR(32) NOT NULL,
+    name        VARCHAR(128) NOT NULL,
+    enabled     BOOLEAN DEFAULT TRUE,
+    config      JSONB NOT NULL,
+    description VARCHAR(255),
+    owner_id    BIGINT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_int_config IS '第三方集成配置表';
+
+-- 集成发送日志
+CREATE TABLE mf_int_send_log (
+    id            BIGSERIAL PRIMARY KEY,
+    config_id     BIGINT,
+    type          VARCHAR(32),
+    channel       VARCHAR(32),
+    receiver      VARCHAR(255),
+    subject       VARCHAR(255),
+    content       TEXT,
+    status        VARCHAR(16),
+    error_message TEXT,
+    cost_ms       BIGINT,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_int_send_log IS '集成消息发送日志';
+
+-- MCP 工具注册
+CREATE TABLE mf_int_mcp_tool (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(128) NOT NULL UNIQUE,
+    display_name VARCHAR(128),
+    description TEXT,
+    endpoint    VARCHAR(512),
+    transport   VARCHAR(16) DEFAULT 'stdio',
+    config      JSONB,
+    input_schema JSONB,
+    enabled     BOOLEAN DEFAULT TRUE,
+    version     VARCHAR(16) DEFAULT 'v1',
+    create_by   BIGINT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_int_mcp_tool IS 'MCP 工具注册表';
+
+
+-- ============================================================
+-- 执行器模块 (mf_exe_*)
+-- ============================================================
+
+-- 执行器节点状态
+CREATE TABLE mf_exe_executor_node (
+    id            BIGSERIAL PRIMARY KEY,
+    node_id       VARCHAR(64) NOT NULL UNIQUE,
+    name          VARCHAR(128),
+    host          VARCHAR(255),
+    port          INT DEFAULT 8080,
+    status        VARCHAR(16) DEFAULT 'offline',
+    last_heartbeat TIMESTAMP,
+    cpu_count     INT,
+    memory_total  BIGINT,
+    memory_used   BIGINT,
+    active_tasks  INT DEFAULT 0,
+    completed_tasks BIGINT DEFAULT 0,
+    failed_tasks   BIGINT DEFAULT 0,
+    tags          JSONB,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_exe_executor_node IS '执行器节点表';
+
+-- 执行任务
+CREATE TABLE mf_exe_task (
+    id            BIGSERIAL PRIMARY KEY,
+    execution_id  BIGINT,
+    node_id       VARCHAR(64),
+    status        VARCHAR(16) DEFAULT 'pending',
+    priority      INT DEFAULT 0,
+    input         JSONB,
+    output        JSONB,
+    error_message TEXT,
+    start_time    TIMESTAMP,
+    end_time      TIMESTAMP,
+    cost_ms       BIGINT,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_exe_task IS '执行任务表';
+
+
+-- ============================================================
+-- 触发器与调度模块 (mf_wf_trigger, mf_wf_schedule)
+-- ============================================================
+
+-- 工作流触发器
+CREATE TABLE mf_wf_trigger (
+    id            BIGSERIAL PRIMARY KEY,
+    workflow_id   BIGINT NOT NULL,
+    type          VARCHAR(32) NOT NULL,
+    name          VARCHAR(128),
+    config        JSONB,
+    enabled       BOOLEAN DEFAULT TRUE,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_trigger IS '工作流触发器表';
+
+-- 工作流调度
+CREATE TABLE mf_wf_schedule (
+    id            BIGSERIAL PRIMARY KEY,
+    workflow_id   BIGINT NOT NULL,
+    cron          VARCHAR(64),
+    timezone      VARCHAR(32) DEFAULT 'Asia/Shanghai',
+    enabled       BOOLEAN DEFAULT TRUE,
+    next_run_at   TIMESTAMP,
+    last_run_at   TIMESTAMP,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE mf_wf_schedule IS '工作流定时调度表';
+
+
+-- ===== V2__create_indexes.sql =====
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- =============================================================
+-- V2__create_indexes.sql
+-- 喵流 MeowFlow 性能索引
+-- 依赖: V1__init_schema.sql
+-- 创建日期: 2026-07-13
+-- =============================================================
+
+-- ============================================================
+-- 系统模块索引 (mf_sys_*)
+-- ============================================================
+
+-- 组织索引
+CREATE INDEX idx_mf_sys_org_parent ON mf_sys_org(parent_id);
+CREATE INDEX idx_mf_sys_org_status ON mf_sys_org(status);
+CREATE INDEX idx_mf_sys_org_deleted ON mf_sys_org(deleted);
+
+-- 用户索引
+CREATE INDEX idx_mf_sys_user_org ON mf_sys_user(org_id);
+CREATE INDEX idx_mf_sys_user_status ON mf_sys_user(status);
+CREATE INDEX idx_mf_sys_user_phone ON mf_sys_user(phone);
+CREATE INDEX idx_mf_sys_user_email ON mf_sys_user(email);
+CREATE UNIQUE INDEX idx_mf_sys_user_username ON mf_sys_user(username);
+
+-- 角色索引
+CREATE INDEX idx_mf_sys_role_code ON mf_sys_role(code);
+CREATE INDEX idx_mf_sys_role_status ON mf_sys_role(status);
+
+-- 权限索引
+CREATE INDEX idx_mf_sys_permission_parent ON mf_sys_permission(parent_id);
+CREATE INDEX idx_mf_sys_permission_type ON mf_sys_permission(type);
+CREATE INDEX idx_mf_sys_permission_status ON mf_sys_permission(status);
+CREATE INDEX idx_mf_sys_permission_code ON mf_sys_permission(code);
+
+-- 日志索引
+CREATE INDEX idx_mf_sys_login_log_user ON mf_sys_login_log(user_id);
+CREATE INDEX idx_mf_sys_login_log_at ON mf_sys_login_log(login_at);
+CREATE INDEX idx_mf_sys_login_log_status ON mf_sys_login_log(status);
+
+CREATE INDEX idx_mf_sys_audit_user ON mf_sys_audit_log(user_id);
+CREATE INDEX idx_mf_sys_audit_module ON mf_sys_audit_log(module);
+CREATE INDEX idx_mf_sys_audit_created ON mf_sys_audit_log(created_at);
+
+
+-- ============================================================
+-- 工作流模块索引 (mf_wf_*)
+-- ============================================================
+
+-- 工作流主表索引
+CREATE INDEX idx_mf_wf_workflow_category ON mf_wf_workflow(category_id);
+CREATE INDEX idx_mf_wf_workflow_owner ON mf_wf_workflow(owner_id);
+CREATE INDEX idx_mf_wf_workflow_status ON mf_wf_workflow(status);
+CREATE INDEX idx_mf_wf_workflow_deleted ON mf_wf_workflow(deleted);
+CREATE INDEX idx_mf_wf_workflow_update_time ON mf_wf_workflow(update_time DESC);
+
+-- 全文检索索引 (需要 pg_trgm 扩展)
+CREATE INDEX idx_mf_wf_workflow_name_trgm ON mf_wf_workflow USING gin (name gin_trgm_ops);
+CREATE INDEX idx_mf_wf_workflow_desc_trgm ON mf_wf_workflow USING gin (description gin_trgm_ops);
+
+-- 工作流版本索引
+CREATE INDEX idx_mf_wf_workflow_version_wf ON mf_wf_workflow_version(workflow_id);
+CREATE INDEX idx_mf_wf_workflow_version_status ON mf_wf_workflow_version(publish_status);
+
+-- 执行记录索引 - 关键复合索引
+CREATE INDEX idx_mf_wf_execution_workflow ON mf_wf_execution(workflow_id);
+CREATE INDEX idx_mf_wf_execution_status ON mf_wf_execution(status);
+CREATE INDEX idx_mf_wf_execution_trigger_user ON mf_wf_execution(trigger_user_id);
+CREATE INDEX idx_mf_wf_execution_started ON mf_wf_execution(started_at DESC);
+
+-- 复合索引: 工作流ID + 创建时间 (工作流执行历史查询)
+CREATE INDEX idx_mf_wf_execution_wf_created ON mf_wf_execution(workflow_id, create_time DESC);
+
+-- 复合索引: 状态 + 创建时间 (状态筛选 + 时间排序)
+CREATE INDEX idx_mf_wf_execution_status_created ON mf_wf_execution(status, create_time DESC);
+
+-- 节点执行索引
+CREATE INDEX idx_mf_wf_node_execution_exec ON mf_wf_node_execution(execution_id);
+CREATE INDEX idx_mf_wf_node_execution_node ON mf_wf_node_execution(node_id);
+CREATE INDEX idx_mf_wf_node_execution_status ON mf_wf_node_execution(status);
+CREATE INDEX idx_mf_wf_node_execution_created ON mf_wf_node_execution(create_time DESC);
+
+-- 复合索引: 执行ID + 创建时间 (节点执行历史)
+CREATE INDEX idx_mf_wf_node_execution_exec_created ON mf_wf_node_execution(execution_id, create_time DESC);
+
+-- 执行日志索引
+CREATE INDEX idx_mf_wf_execution_log_exec ON mf_wf_execution_log(execution_id);
+CREATE INDEX idx_mf_wf_execution_log_level ON mf_wf_execution_log(level);
+CREATE INDEX idx_mf_wf_execution_log_created ON mf_wf_execution_log(created_at DESC);
+
+-- 复合索引: 执行ID + 创建时间 (执行日志查询)
+CREATE INDEX idx_mf_wf_execution_log_exec_created ON mf_wf_execution_log(execution_id, created_at DESC);
+
+-- 分类和分组索引
+CREATE INDEX idx_mf_wf_category_status ON mf_wf_category(status);
+CREATE INDEX idx_mf_wf_group_user ON mf_wf_group(user_id);
+
+-- 触发器和调度索引
+CREATE INDEX idx_mf_wf_trigger_workflow ON mf_wf_trigger(workflow_id);
+CREATE INDEX idx_mf_wf_trigger_type ON mf_wf_trigger(type);
+CREATE INDEX idx_mf_wf_trigger_enabled ON mf_wf_trigger(enabled);
+
+CREATE INDEX idx_mf_wf_schedule_workflow ON mf_wf_schedule(workflow_id);
+CREATE INDEX idx_mf_wf_schedule_enabled ON mf_wf_schedule(enabled);
+CREATE INDEX idx_mf_wf_schedule_next_run ON mf_wf_schedule(next_run_at);
+
+
+-- ============================================================
+-- 模板模块索引 (mf_tpl_*)
+-- ============================================================
+
+-- 模板索引
+CREATE INDEX idx_mf_tpl_template_category ON mf_tpl_template(category_id);
+CREATE INDEX idx_mf_tpl_template_status ON mf_tpl_template(status);
+CREATE INDEX idx_mf_tpl_template_review_status ON mf_tpl_template(review_status);
+CREATE INDEX idx_mf_tpl_template_author ON mf_tpl_template(author_id);
+
+-- 复合索引: 分类 + 状态 (模板列表查询)
+CREATE INDEX idx_mf_tpl_template_cat_status ON mf_tpl_template(category_id, status);
+
+-- 复合索引: 评分 DESC + 使用次数 DESC (模板推荐/排序)
+CREATE INDEX idx_mf_tpl_template_score_use ON mf_tpl_template(score DESC, use_count DESC);
+
+-- 模板评价索引
+CREATE INDEX idx_mf_tpl_review_template ON mf_tpl_review(template_id);
+CREATE INDEX idx_mf_tpl_review_user ON mf_tpl_review(user_id);
+
+
+-- ============================================================
+-- 监控模块索引 (mf_mon_*)
+-- ============================================================
+
+-- 告警规则索引
+CREATE INDEX idx_mf_mon_alert_rule_enabled ON mf_mon_alert_rule(enabled);
+CREATE INDEX idx_mf_mon_alert_rule_metric ON mf_mon_alert_rule(metric);
+
+-- 告警记录索引
+CREATE INDEX idx_mf_mon_alert_rule_id ON mf_mon_alert(rule_id);
+CREATE INDEX idx_mf_mon_alert_status ON mf_mon_alert(status);
+CREATE INDEX idx_mf_mon_alert_triggered ON mf_mon_alert(triggered_at DESC);
+
+-- 每日指标索引
+CREATE INDEX idx_mf_mon_metric_daily_date ON mf_mon_metric_daily(metric_date DESC);
+
+
+-- ============================================================
+-- AI 模块索引 (mf_ai_*)
+-- ============================================================
+
+-- 模型配置索引
+CREATE INDEX idx_mf_ai_model_provider ON mf_ai_model(provider);
+CREATE INDEX idx_mf_ai_model_enabled ON mf_ai_model(enabled);
+CREATE INDEX idx_mf_ai_model_default ON mf_ai_model(is_default);
+CREATE INDEX idx_mf_ai_model_priority ON mf_ai_model(priority DESC);
+
+-- 知识库索引
+CREATE INDEX idx_mf_ai_knowledge_owner ON mf_ai_knowledge(owner_id);
+CREATE INDEX idx_mf_ai_knowledge_status ON mf_ai_knowledge(status);
+
+-- 文档索引
+CREATE INDEX idx_mf_ai_document_kb ON mf_ai_document(kb_id);
+CREATE INDEX idx_mf_ai_document_status ON mf_ai_document(status);
+
+-- 向量分块索引 (向量相似度检索 - 需要 pgvector 扩展)
+-- 如果使用 pgvector,取消下面注释:
+-- CREATE INDEX idx_mf_ai_chunk_embedding ON mf_ai_chunk USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- 备选索引: BYTEA embedding 降级方案
+CREATE INDEX idx_mf_ai_chunk_doc ON mf_ai_chunk(document_id);
+CREATE INDEX idx_mf_ai_chunk_kb ON mf_ai_chunk(kb_id);
+
+-- AI 调用日志索引
+CREATE INDEX idx_mf_ai_invoke_log_user ON mf_ai_invoke_log(user_id);
+CREATE INDEX idx_mf_ai_invoke_log_exec ON mf_ai_invoke_log(execution_id);
+CREATE INDEX idx_mf_ai_invoke_log_model ON mf_ai_invoke_log(model_id);
+CREATE INDEX idx_mf_ai_invoke_log_status ON mf_ai_invoke_log(status);
+CREATE INDEX idx_mf_ai_invoke_log_created ON mf_ai_invoke_log(created_at DESC);
+
+
+-- ============================================================
+-- 集成模块索引 (mf_int_*)
+-- ============================================================
+
+-- 集成配置索引
+CREATE INDEX idx_mf_int_config_type ON mf_int_config(type);
+CREATE INDEX idx_mf_int_config_enabled ON mf_int_config(enabled);
+
+-- 发送日志索引
+CREATE INDEX idx_mf_int_send_log_config ON mf_int_send_log(config_id);
+CREATE INDEX idx_mf_int_send_log_type ON mf_int_send_log(type);
+CREATE INDEX idx_mf_int_send_log_status ON mf_int_send_log(status);
+CREATE INDEX idx_mf_int_send_log_created ON mf_int_send_log(created_at DESC);
+
+-- MCP 工具索引
+CREATE INDEX idx_mf_int_mcp_tool_enabled ON mf_int_mcp_tool(enabled);
+CREATE INDEX idx_mf_int_mcp_tool_name ON mf_int_mcp_tool(name);
+
+
+-- ============================================================
+-- 执行器模块索引 (mf_exe_*)
+-- ============================================================
+
+-- 执行器节点索引
+CREATE INDEX idx_mf_exe_executor_node_status ON mf_exe_executor_node(status);
+CREATE INDEX idx_mf_exe_executor_node_heartbeat ON mf_exe_executor_node(last_heartbeat);
+
+-- 任务索引
+CREATE INDEX idx_mf_exe_task_exec ON mf_exe_task(execution_id);
+CREATE INDEX idx_mf_exe_task_node ON mf_exe_task(node_id);
+CREATE INDEX idx_mf_exe_task_status ON mf_exe_task(status);
+CREATE INDEX idx_mf_exe_task_priority ON mf_exe_task(priority DESC);
+CREATE INDEX idx_mf_exe_task_created ON mf_exe_task(create_time DESC);
+
+
+
+-- ===== V3__create_extensions.sql =====
+-- =============================================================
+-- V3__create_extensions.sql
+-- 喵流 MeowFlow PostgreSQL 扩展
+-- 创建日期: 2026-07-13
+-- =============================================================
+
+-- UUID 生成扩展
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 加密扩展
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- GIST 索引增强
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- 模糊匹配扩展 (用于全文检索,依赖 V2 索引)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- pgvector 向量扩展 (可选,知识库向量检索用)
+-- 如果需要向量检索,取消下面注释:
+-- CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ============================================================
+-- 公共函数
+-- ============================================================
+
+-- 审计字段自动维护函数: create_time / update_time
+CREATE OR REPLACE FUNCTION mf_set_audit_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF to_jsonb(NEW) ? 'update_time' THEN
+        NEW := jsonb_populate_record(NEW, jsonb_build_object('update_time', CURRENT_TIMESTAMP));
+    END IF;
+
+    IF TG_OP = 'INSERT' AND to_jsonb(NEW) ? 'create_time' THEN
+        IF (to_jsonb(NEW) ->> 'create_time') IS NULL THEN
+            NEW := jsonb_populate_record(NEW, jsonb_build_object('create_time', CURRENT_TIMESTAMP));
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION mf_set_audit_columns() IS '公共审计字段自动维护:create_time/update_time';
+
+-- 软删除字段默认值函数
+CREATE OR REPLACE FUNCTION mf_soft_delete_check()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.deleted IS NULL THEN
+        NEW.deleted := FALSE;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION mf_soft_delete_check() IS '软删除字段默认值';
+
+-- ============================================================
+-- 触发器 (在表创建后手动应用)
+-- ============================================================
+
+-- 为常用表添加审计触发器
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name LIKE 'mf_%'
+    LOOP
+        -- 动态创建审计触发器 (如果表有 create_time/update_time 字段)
+        EXECUTE format(
+            'CREATE OR REPLACE TRIGGER trg_%s_audit
+             BEFORE INSERT OR UPDATE ON %s
+             FOR EACH ROW EXECUTE FUNCTION mf_set_audit_columns()',
+            r.table_name, r.table_name
+        );
+    END LOOP;
+END $$;
+
+-- 为有 deleted 字段的表添加软删除触发器
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT t.table_name
+        FROM information_schema.tables t
+        JOIN information_schema.columns c
+          ON c.table_schema = t.table_schema
+         AND c.table_name = t.table_name
+        WHERE t.table_schema = 'public'
+          AND t.table_name LIKE 'mf_%'
+          AND c.column_name = 'deleted'
+    LOOP
+        EXECUTE format(
+            'CREATE OR REPLACE TRIGGER trg_%s_soft
+             BEFORE INSERT ON %s
+             FOR EACH ROW EXECUTE FUNCTION mf_soft_delete_check()',
+            r.table_name, r.table_name
+        );
+    END LOOP;
+END $$;
+
+
+
+
+-- ===== V4__seed_data.sql =====
+-- =============================================================
+-- V4__seed_data.sql
+-- 喵流 MeowFlow 初始数据
+-- 创建日期: 2026-07-13
+-- =============================================================
+
+-- ============================================================
+-- 1. 超级管理员账号
+-- 用户名: admin
+-- 密码: meow@2026 (BCrypt 加密后的 hash, 请首次登录后修改!)
+-- BCrypt("meow@2026") 示例 hash
+-- ============================================================
+INSERT INTO mf_sys_user (username, password, nickname, real_name, status, email)
+VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '超级管理员', '系统管理员', 'active', 'admin@meowflow.com')
+ON CONFLICT (username) DO NOTHING;
+
+-- ============================================================
+-- 2. 默认组织
+-- ============================================================
+INSERT INTO mf_sys_org (parent_id, name, code, sort, leader_user_id, status)
+VALUES
+    (0, '喵流官方', 'meowflow', 0, 1, 'active'),
+    (0, '默认组织', 'default', 1, 1, 'active')
+ON CONFLICT (code) DO NOTHING;
+
+-- ============================================================
+-- 3. 默认角色
+-- ============================================================
+INSERT INTO mf_sys_role (code, name, data_scope, sort, status, remark)
+VALUES
+    ('super_admin', '超级管理员', 'all', 0, 'active', '拥有所有权限'),
+    ('admin', '管理员', 'org', 1, 'active', '组织级管理员'),
+    ('member', '成员', 'self', 2, 'active', '普通成员,可见自己的资源'),
+    ('viewer', '访客', 'self', 3, 'active', '只读')
+ON CONFLICT (code) DO NOTHING;
+
+-- ============================================================
+-- 4. 默认岗位
+-- ============================================================
+INSERT INTO mf_sys_post (code, name, sort)
+VALUES
+    ('ceo', 'CEO', 0),
+    ('cto', 'CTO', 1),
+    ('pm', '产品经理', 2),
+    ('dev', '工程师', 3),
+    ('ops', '运营', 4)
+ON CONFLICT (code) DO NOTHING;
+
+-- ============================================================
+-- 5. 内置权限 (菜单/按钮)
+-- ============================================================
+INSERT INTO mf_sys_permission (id, parent_id, type, name, code, path, icon, sort)
+VALUES
+    -- 顶级菜单
+    (1, 0, 'menu', '工作台', 'dashboard', '/dashboard', 'fa-tachometer-alt', 0),
+    (2, 0, 'menu', '工作流', 'workflow', '/workflows', 'fa-diagram-project', 1),
+    (3, 2, 'menu', '工作流列表', 'workflow:list', '/workflows', '', 1),
+    (4, 2, 'menu', '工作流编辑器', 'workflow:editor', '/editor', '', 2),
+    (5, 0, 'menu', '模板市场', 'template', '/templates', 'fa-puzzle-piece', 2),
+    (6, 0, 'menu', '执行日志', 'log', '/logs', 'fa-list-alt', 3),
+    (7, 0, 'menu', '统计看板', 'statistics', '/statistics', 'fa-chart-line', 4),
+    (8, 0, 'menu', '用户中心', 'user', '/profile', 'fa-user', 5),
+    (9, 0, 'menu', '团队管理', 'team', '/team', 'fa-users', 6),
+    (10, 0, 'menu', '系统设置', 'system', '/settings', 'fa-cog', 7),
+    -- 按钮权限
+    (100, 3, 'btn', '新建工作流', 'workflow:create', NULL, NULL, 1),
+    (101, 3, 'btn', '编辑工作流', 'workflow:edit', NULL, NULL, 2),
+    (102, 3, 'btn', '删除工作流', 'workflow:delete', NULL, NULL, 3),
+    (103, 3, 'btn', '执行工作流', 'workflow:run', NULL, NULL, 4),
+    (104, 3, 'btn', '发布工作流', 'workflow:publish', NULL, NULL, 5),
+    -- 设置子菜单
+    (110, 10, 'menu', 'AI 模型配置', 'system:model', '/settings/model', 'fa-robot', 1),
+    (111, 10, 'menu', '集成配置', 'system:integration', '/settings/integration', 'fa-plug', 2),
+    (112, 10, 'menu', '告警规则', 'system:alert', '/settings/alert', 'fa-bell', 3)
+ON CONFLICT (id) DO NOTHING;
+
+-- 修正 id 序列
+SELECT setval(pg_get_serial_sequence('mf_sys_permission','id'),
+    GREATEST((SELECT MAX(id) FROM mf_sys_permission), 1));
+
+-- ============================================================
+-- 6. 管理员与角色关联
+-- ============================================================
+INSERT INTO mf_sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM mf_sys_user u, mf_sys_role r
+WHERE u.username = 'admin' AND r.code = 'super_admin'
+ON CONFLICT DO NOTHING;
+
+-- super_admin 拥有所有菜单
+INSERT INTO mf_sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM mf_sys_role r, mf_sys_permission p
+WHERE r.code = 'super_admin'
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 7. 工作流分类
+-- ============================================================
+INSERT INTO mf_wf_category (id, parent_id, code, name, sort)
+VALUES
+    (1, 0, 'cs', '客服场景', 1),
+    (2, 0, 'hr', '人力资源', 2),
+    (3, 0, 'ops', '运营提效', 3),
+    (4, 0, 'finance', '财务行政', 4),
+    (5, 0, 'general', '通用', 9)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('mf_wf_category','id'),
+    GREATEST((SELECT MAX(id) FROM mf_wf_category), 1));
+
+-- ============================================================
+-- 8. 默认 AI 模型配置
+-- ============================================================
+INSERT INTO mf_ai_model (name, provider, model_type, api_base, enabled, is_default, priority, max_tokens, temperature)
+VALUES
+    ('GPT-4o', 'OpenAI', 'gpt-4o', 'https://api.openai.com/v1', TRUE, FALSE, 90, 8192, 0.7),
+    ('GPT-4o Mini', 'OpenAI', 'gpt-4o-mini', 'https://api.openai.com/v1', TRUE, TRUE, 80, 8192, 0.7),
+    ('DeepSeek-V3', 'DeepSeek', 'deepseek-chat', 'https://api.deepseek.com/v1', TRUE, FALSE, 70, 8192, 0.7),
+    ('通义千问 Turbo', '阿里云', 'qwen-plus', 'https://dashscope.aliyuncs.com/compatible-mode/v1', FALSE, FALSE, 60, 8192, 0.7),
+    ('通义千问 Max', '阿里云', 'qwen-max', 'https://dashscope.aliyuncs.com/compatible-mode/v1', FALSE, FALSE, 50, 8192, 0.7),
+    ('文心一言 4', '百度', 'ernie-4.0-8k', 'https://aip.baidubce.com', FALSE, FALSE, 50, 8192, 0.7),
+    ('Claude 3.5 Sonnet', 'Anthropic', 'claude-3-5-sonnet-latest', 'https://api.anthropic.com', FALSE, FALSE, 85, 8192, 0.7),
+    ('text-embedding-3-small', 'OpenAI', 'text-embedding-3-small', 'https://api.openai.com/v1', TRUE, TRUE, 80, 1536, 0.0)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 9. 集成默认配置 (未启用,需后续配置)
+-- ============================================================
+INSERT INTO mf_int_config (type, name, enabled, config, description)
+VALUES
+    ('dingtalk', '钉钉机器人', FALSE, '{"webhook":"","secret":""}'::jsonb, '工作流执行结果自动推送到钉钉群'),
+    ('wxwork', '企业微信机器人', FALSE, '{"webhook":""}'::jsonb, '工作流执行结果推送到企微群'),
+    ('feishu', '飞书机器人', FALSE, '{"webhook":""}'::jsonb, '工作流执行结果推送到飞书群'),
+    ('email', 'SMTP 邮件', FALSE, '{"host":"","port":465,"username":"","password":""}'::jsonb, '执行结果邮件通知'),
+    ('sms', '阿里云短信', FALSE, '{"accessKey":"","secret":"","signName":"喵流"}'::jsonb, '短信通知')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 10. 默认告警规则
+-- ============================================================
+INSERT INTO mf_mon_alert_rule (name, metric, condition, threshold, duration_s, channels, enabled, owner_id)
+VALUES
+    ('执行失败告警', 'execution_failed', 'gt', 5, 60, '["email"]'::jsonb, TRUE, 1),
+    ('执行超时告警', 'execution_timeout', 'gt', 3, 60, '["dingtalk"]'::jsonb, TRUE, 1),
+    ('成本超限告警', 'cost_exceeded', 'gt', 100, 3600, '["email"]'::jsonb, TRUE, 1)
+ON CONFLICT DO NOTHING;
+
+
+
+-- ===== V7__align_templates_with_code.sql =====
+-- =============================================================
+-- V7__align_templates_with_code.sql
+-- 喵流 MeowFlow 模板模块与 Java 实体 + 内置目录 对齐
+-- 依赖: V1..V6
+-- 设计原则：
+--   1. 采用"补齐字段"而非"删表重建"，对线上数据库零侵入
+--   2. 字段类型与 Java @TableField 完全一致（MyBatis-Plus 字段名按列下划线映射驼峰）
+--   3. 评分 + 评分帮助表从 meowflow-template 的孤立 V6 迁移到标准 db/migration
+--   4. mf_tpl_template.industry/scene/author/price: 与 DDL 中已有字段保留，仅新增 Java 缺失的列
+-- =============================================================
+
+-- 0. 模板主表：补齐字段（与 Java Template 实体保持一致）
+ALTER TABLE mf_tpl_template
+    ADD COLUMN IF NOT EXISTS cover_image      VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS cover_icon       VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS preview_images   TEXT,
+    ADD COLUMN IF NOT EXISTS workflow_json    JSONB,
+    ADD COLUMN IF NOT EXISTS workflow_graph   JSONB,
+    ADD COLUMN IF NOT EXISTS template_version VARCHAR(16)      DEFAULT 'v1',
+    ADD COLUMN IF NOT EXISTS review_count     BIGINT           DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS review_comment   VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS review_by        BIGINT,
+    ADD COLUMN IF NOT EXISTS review_time      TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS update_by        BIGINT,
+    ADD COLUMN IF NOT EXISTS remark           VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS tag_ids          JSONB,
+    ADD COLUMN IF NOT EXISTS is_public        VARCHAR(1)       DEFAULT 'N',
+    ADD COLUMN IF NOT EXISTS is_featured      VARCHAR(1)       DEFAULT 'N';
+
+-- 调整 version 与 template_version 共存：
+--   DDL V1 已存在 version VARCHAR(16)（模板业务版本）
+--   Java 实体期望 Integer "version"（修订计数）
+--   通过同名同义，让 MyBatis 兼容；下面将 version 列缺省值与类型放宽
+ALTER TABLE mf_tpl_template
+    ALTER COLUMN version SET DEFAULT 'v1';
+
+COMMENT ON COLUMN mf_tpl_template.version             IS '模板业务版本（v1/v2）';
+COMMENT ON COLUMN mf_tpl_template.cover_image         IS '模板封面图';
+COMMENT ON COLUMN mf_tpl_template.cover_icon          IS '模板封面图标(FontAwesome / emoji)';
+COMMENT ON COLUMN mf_tpl_template.preview_images      IS '模板预览图列表(JSONB 数组)';
+COMMENT ON COLUMN mf_tpl_template.workflow_json       IS '工作流定义 JSON(规范 schema)';
+COMMENT ON COLUMN mf_tpl_template.workflow_graph      IS '工作流图形 JSON(预览归一化)';
+COMMENT ON COLUMN mf_tpl_template.review_count        IS '评价数量';
+COMMENT ON COLUMN mf_tpl_template.review_comment      IS '最新一次审核意见';
+COMMENT ON COLUMN mf_tpl_template.tag_ids             IS '后端冗余:逗号分隔的标签ID,与 mf_tpl_tag 关联';
+COMMENT ON COLUMN mf_tpl_template.is_public           IS '是否公开(Y/N)';
+COMMENT ON COLUMN mf_tpl_template.is_featured         IS '是否推荐(Y/N)';
+
+-- 1. 模板标签表（DDL V1 没建）
+CREATE TABLE IF NOT EXISTS mf_tpl_tag (
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(64) NOT NULL UNIQUE,
+    color         VARCHAR(16),
+    sort          INT         DEFAULT 0,
+    usage_count   BIGINT      DEFAULT 0,
+    create_by     BIGINT,
+    create_time   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    update_by     BIGINT,
+    update_time   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    remark        VARCHAR(255)
+);
+COMMENT ON TABLE mf_tpl_tag IS '模板标签';
+
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_tag_usage    ON mf_tpl_tag(usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_tag_sort     ON mf_tpl_tag(sort);
+
+-- 2. 模板-标签关联表（精确匹配，避免 LIKE 匹配 12/112/120）
+CREATE TABLE IF NOT EXISTS mf_tpl_template_tag (
+    template_id  BIGINT NOT NULL,
+    tag_id       BIGINT NOT NULL,
+    PRIMARY KEY (template_id, tag_id)
+);
+COMMENT ON TABLE mf_tpl_template_tag IS '模板与标签的多对多关联';
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_tag_tag ON mf_tpl_template_tag(tag_id);
+
+-- 3. 工作流分类缺口字段（Java 实体期望 level/description/remark，DDL V1 未建）
+ALTER TABLE mf_wf_category
+    ADD COLUMN IF NOT EXISTS level       INT          DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS description VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS remark      VARCHAR(255);
+COMMENT ON COLUMN mf_wf_category.level IS '分类层级';
+
+-- 4. 评分表 —— 把孤立 V6 内容迁移到标准路径下，并对齐 FK 类型为 BIGINT
+CREATE TABLE IF NOT EXISTS mf_tpl_rating (
+    id           BIGSERIAL PRIMARY KEY,
+    template_id  BIGINT NOT NULL,
+    user_id      BIGINT NOT NULL,
+    score        SMALLINT NOT NULL CHECK (score >= 1 AND score <= 5),
+    content      TEXT,
+    tags         VARCHAR(500),
+    helpful_count INT     DEFAULT 0,
+    is_anonymous BOOLEAN  DEFAULT FALSE,
+    status       VARCHAR(20) DEFAULT 'active',
+    create_by    BIGINT,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by    BIGINT,
+    update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark       VARCHAR(500)
+);
+COMMENT ON TABLE mf_tpl_rating IS '模板评分表';
+
+CREATE TABLE IF NOT EXISTS mf_tpl_rating_helpful (
+    id          BIGSERIAL PRIMARY KEY,
+    rating_id   BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    create_by   BIGINT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark      VARCHAR(500)
+);
+COMMENT ON TABLE mf_tpl_rating_helpful IS '评分有帮助记录';
+
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_template  ON mf_tpl_rating(template_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_user      ON mf_tpl_rating(user_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_score     ON mf_tpl_rating(score);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_status    ON mf_tpl_rating(status);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_helpful_r ON mf_tpl_rating_helpful(rating_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_helpful_u ON mf_tpl_rating_helpful(user_id);
+
+-- 5. 全文检索向量列（TemplateRepository.searchByFullText 依赖）
+ALTER TABLE mf_tpl_template
+    ADD COLUMN IF NOT EXISTS search_vector TSVECTOR;
+
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_search_vector
+    ON mf_tpl_template USING gin (search_vector);
+
+-- 自动维护 search_vector 的触发器（不依赖 zhparser，使用 simple 字典 + name + description）
+CREATE OR REPLACE FUNCTION mf_tpl_template_search_refresh()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.search_vector :=
+        setweight(to_tsvector('simple', coalesce(NEW.name, '')), 'A') ||
+        setweight(to_tsvector('simple', coalesce(NEW.description, '')), 'B');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_mf_tpl_template_search ON mf_tpl_template;
+CREATE TRIGGER trg_mf_tpl_template_search
+    BEFORE INSERT OR UPDATE OF name, description ON mf_tpl_template
+    FOR EACH ROW EXECUTE FUNCTION mf_tpl_template_search_refresh();
+
+-- 6. 内置官方模板种子（与代码端 BuiltinTemplateCatalog 一一对应；id 用负值避免冲突正序自增）
+INSERT INTO mf_tpl_template (
+    category_id, name, description, icon, industry, scene,
+    definition, version, author, author_id, price, tags,
+    use_count, score, review_status, reviewed_by, reviewed_at, review_remark,
+    status, cover_icon, is_public, is_featured, template_version
+) VALUES
+    (1, '智能客服自动回复', '接入 IM / 工单系统，自动识别意图并回复，必要时升级到人工坐席', '💬',
+     'service', 'cs',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["客服","AI","自动回复"]'::jsonb,
+     1284, 4.80, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '💬', 'Y', 'Y', 'v1'),
+    (1, '工单分类与路由', '接收工单后自动按内容分类并分发到对应处理组', '🎫',
+     'service', 'cs',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["客服","工单","AI"]'::jsonb,
+     612, 4.60, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🎫', 'Y', 'Y', 'v1'),
+    (1, '用户反馈分析', '汇总多渠道用户反馈，做情感和主题分析并产出日报', '💡',
+     'service', 'cs',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["客服","反馈","AI"]'::jsonb,
+     287, 4.50, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '💡', 'Y', 'Y', 'v1'),
+    (2, '简历自动筛选', '招聘网站投递自动解析、匹配 JD 评分并推送 HR 或自动婉拒', '📄',
+     'hr', 'recruit',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["HR","招聘","AI"]'::jsonb,
+     921, 4.70, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '📄', 'Y', 'Y', 'v1'),
+    (2, '请假审批', '员工提交请假自动校验冲突、根据天数路由审批并通知', '🌴',
+     'hr', 'leave',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["HR","审批","表单"]'::jsonb,
+     412, 4.60, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🌴', 'Y', 'Y', 'v1'),
+    (2, '员工入职流程', '自动开通账号、分配工位、通知 HRBP 并发送个性化欢迎包', '🤝',
+     'hr', 'onboarding',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["HR","入职","AI"]'::jsonb,
+     248, 4.50, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🤝', 'Y', 'Y', 'v1'),
+    (3, '会议纪要生成', '上传音频自动转写、生成结构化纪要，并分发邮件 / 飞书', '🗒️',
+     'ops', 'meeting',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["运营","会议","AI"]'::jsonb,
+     1421, 4.90, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🗒️', 'Y', 'Y', 'v1'),
+    (3, '团队日报汇总', '定时拉取日报、合并并生成汇报，推送到管理层', '📊',
+     'ops', 'report',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["运营","日报","定时"]'::jsonb,
+     532, 4.50, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '📊', 'Y', 'Y', 'v1'),
+    (3, '营销文案生成', '基于商品参数自动提炼卖点、生成多平台营销文案并合规审核', '✍️',
+     'ops', 'marketing',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["运营","文案","AI"]'::jsonb,
+     856, 4.60, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '✍️', 'Y', 'Y', 'v1'),
+    (3, '数据周报生成', '周期性拉取业务指标、清洗分析后产出可订阅的数据周报', '📈',
+     'ops', 'report',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["运营","数据","AI"]'::jsonb,
+     384, 4.60, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '📈', 'Y', 'Y', 'v1'),
+    (4, '发票识别与归档', '扫描 / 上传发票自动 OCR、字段校验、真伪识别后归档', '🧾',
+     'finance', 'invoice',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["财务","发票","AI"]'::jsonb,
+     354, 4.70, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🧾', 'Y', 'Y', 'v1'),
+    (4, '报销审批', '员工提交报销单后自动查重 / 按金额路由审批并触发支付', '💰',
+     'finance', 'reimburse',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["财务","审批","AI"]'::jsonb,
+     268, 4.50, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '💰', 'Y', 'Y', 'v1'),
+    (4, '应收款提醒', '每日扫描应收款，自动催收客户或升级给财务主管', '⏰',
+     'finance', 'ar',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["财务","催收","AI"]'::jsonb,
+     198, 4.40, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '⏰', 'Y', 'Y', 'v1'),
+    (5, '数据同步任务', '定时把业务库数据同步到数仓 / Kafka，支持全量与增量', '🗄️',
+     'data', 'etl',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["数据","同步","定时"]'::jsonb,
+     318, 4.40, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🗄️', 'Y', 'Y', 'v1'),
+    (5, '通用 Webhook 接入', '通用 Webhook 接收、签名校验后执行业务并回调外部系统', '🔗',
+     'general', 'webhook',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["通用","Webhook","回调"]'::jsonb,
+     425, 4.50, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🔗', 'Y', 'Y', 'v1'),
+    (5, '定时备份', '周期性导出数据库 / 文件、加密上传到对象存储', '💾',
+     'general', 'backup',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["通用","备份","定时"]'::jsonb,
+     256, 4.50, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '💾', 'Y', 'Y', 'v1'),
+    (5, '数据清洗转换', '上传原始数据，AI 补全 / 异常处理后导出可用的结构化数据', '🧹',
+     'data', 'clean',
+     '{"nodes":[],"edges":[],"version":"v1"}'::jsonb, 'v1', '喵流官方', 1, 0,
+     '["数据","清洗","AI"]'::jsonb,
+     187, 4.60, 'approved', 1, CURRENT_TIMESTAMP, '官方内置模板',
+     'active', '🧹', 'Y', 'Y', 'v1')
+ON CONFLICT DO NOTHING;
+
+-- 7. 内置模板标签种子
+INSERT INTO mf_tpl_tag (name, color, sort) VALUES
+    ('客服', '#f472b6', 1),
+    ('AI', '#f97316', 2),
+    ('自动回复', '#6366f1', 3),
+    ('工单', '#fbbf24', 4),
+    ('反馈', '#22d3ee', 5),
+    ('HR', '#34d399', 6),
+    ('招聘', '#10b981', 7),
+    ('审批', '#8b5cf6', 8),
+    ('表单', '#06b6d4', 9),
+    ('入职', '#a855f7', 10),
+    ('运营', '#fbbf24', 11),
+    ('会议', '#22d3ee', 12),
+    ('日报', '#60a5fa', 13),
+    ('定时', '#a78bfa', 14),
+    ('文案', '#ec4899', 15),
+    ('数据', '#22d3ee', 16),
+    ('财务', '#10b981', 17),
+    ('发票', '#06b6d4', 18),
+    ('催收', '#ef4444', 19),
+    ('同步', '#0ea5e9', 20),
+    ('通用', '#9ca3af', 21),
+    ('Webhook', '#8b5cf6', 22),
+    ('回调', '#ec4899', 23),
+    ('备份', '#22c55e', 24),
+    ('清洗', '#0ea5e9', 25),
+    ('电商', '#f59e0b', 26),
+    ('团队', '#3b82f6', 27)
+ON CONFLICT (name) DO NOTHING;
+
+
+-- ===== V8__agent_session.sql =====
+-- Agent 会话表
+CREATE TABLE IF NOT EXISTS mf_agent_session (
+    id BIGSERIAL PRIMARY KEY,
+    session_id VARCHAR(64) NOT NULL UNIQUE,
+    user_id BIGINT,
+    agent_node_id VARCHAR(128),
+    status VARCHAR(32) DEFAULT 'active',
+    last_active_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expire_time TIMESTAMP NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_session_id ON mf_agent_session(session_id);
+CREATE INDEX idx_user_id ON mf_agent_session(user_id);
+CREATE INDEX idx_status_expire ON mf_agent_session(status, expire_time);
+
+COMMENT ON TABLE mf_agent_session IS 'Agent 会话表，存储会话元信息';
+COMMENT ON COLUMN mf_agent_session.session_id IS '会话 ID（业务主键）';
+COMMENT ON COLUMN mf_agent_session.status IS '会话状态：active/expired/archived';
+COMMENT ON COLUMN mf_agent_session.expire_time IS '过期时间（24小时无活动自动过期）';
+
+-- Agent 消息表
+CREATE TABLE IF NOT EXISTS mf_agent_message (
+    id BIGSERIAL PRIMARY KEY,
+    session_id VARCHAR(64) NOT NULL,
+    role VARCHAR(32) NOT NULL,
+    content TEXT NOT NULL,
+    tool_name VARCHAR(128),
+    tool_result JSONB,
+    sequence_number INT NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_message_session ON mf_agent_message(session_id, sequence_number DESC);
+CREATE INDEX idx_message_session_seq ON mf_agent_message(session_id, sequence_number);
+
+COMMENT ON TABLE mf_agent_message IS 'Agent 消息表，存储单条对话消息';
+COMMENT ON COLUMN mf_agent_message.role IS '消息角色：user/assistant/system/tool';
+COMMENT ON COLUMN mf_agent_message.sequence_number IS '消息序号（同一会话内递增，用于排序和淘汰）';
+COMMENT ON COLUMN mf_agent_message.tool_result IS '工具调用结果（仅 role=tool 时有值）';
+
+
+-- ===== V9__repair_template_schema.sql =====
+-- 修复模板主表与 Template 实体缺失列/类型不一致
+ALTER TABLE mf_tpl_template
+    ADD COLUMN IF NOT EXISTS cover_image      VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS cover_icon       VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS preview_images   TEXT,
+    ADD COLUMN IF NOT EXISTS workflow_json    JSONB,
+    ADD COLUMN IF NOT EXISTS workflow_graph   JSONB,
+    ADD COLUMN IF NOT EXISTS template_version INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS review_count     BIGINT DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS review_comment   VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS review_by        BIGINT,
+    ADD COLUMN IF NOT EXISTS review_time      TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS create_by        BIGINT,
+    ADD COLUMN IF NOT EXISTS update_by        BIGINT,
+    ADD COLUMN IF NOT EXISTS remark           VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS tag_ids          JSONB,
+    ADD COLUMN IF NOT EXISTS is_public        VARCHAR(1) DEFAULT 'N',
+    ADD COLUMN IF NOT EXISTS is_featured      VARCHAR(1) DEFAULT 'N',
+    ADD COLUMN IF NOT EXISTS search_vector    TSVECTOR;
+
+ALTER TABLE mf_tpl_template
+    ALTER COLUMN template_version DROP DEFAULT;
+
+ALTER TABLE mf_tpl_template
+    ALTER COLUMN template_version TYPE INTEGER USING
+        CASE WHEN template_version::text ~ '^[0-9]+$' THEN template_version::text::integer ELSE 1 END;
+
+ALTER TABLE mf_tpl_template
+    ALTER COLUMN template_version SET DEFAULT 1;
+
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_search_vector
+    ON mf_tpl_template USING gin (search_vector);
+
+CREATE OR REPLACE FUNCTION mf_tpl_template_search_refresh()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.search_vector :=
+        setweight(to_tsvector('simple', coalesce(NEW.name, '')), 'A') ||
+        setweight(to_tsvector('simple', coalesce(NEW.description, '')), 'B');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_mf_tpl_template_search ON mf_tpl_template;
+CREATE TRIGGER trg_mf_tpl_template_search
+    BEFORE INSERT OR UPDATE OF name, description ON mf_tpl_template
+    FOR EACH ROW EXECUTE FUNCTION mf_tpl_template_search_refresh();
+
+
+CREATE TABLE IF NOT EXISTS mf_tpl_rating (
+    id           BIGSERIAL PRIMARY KEY,
+    template_id  BIGINT NOT NULL,
+    user_id      BIGINT NOT NULL,
+    score        SMALLINT NOT NULL CHECK (score >= 1 AND score <= 5),
+    content      TEXT,
+    tags         VARCHAR(500),
+    helpful_count INT DEFAULT 0,
+    is_anonymous BOOLEAN DEFAULT FALSE,
+    status       VARCHAR(20) DEFAULT 'active',
+    create_by    BIGINT,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by    BIGINT,
+    update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark       VARCHAR(500)
+);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_template ON mf_tpl_rating(template_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_user ON mf_tpl_rating(user_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_score ON mf_tpl_rating(score);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_status ON mf_tpl_rating(status);
+
+CREATE TABLE IF NOT EXISTS mf_tpl_rating_helpful (
+    id          BIGSERIAL PRIMARY KEY,
+    rating_id   BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    create_by   BIGINT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark      VARCHAR(500)
+);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_rating_helpful_r ON mf_tpl_rating_helpful(rating_id);
+
+
+
+-- ===== V10__integration_config.sql =====
+-- 集成配置表：对齐 IntegrationConfigEntity / IntegrationConfigService
+CREATE TABLE IF NOT EXISTS mf_integration_config (
+    id                 BIGSERIAL PRIMARY KEY,
+    type               VARCHAR(32) NOT NULL,
+    name               VARCHAR(128) NOT NULL,
+    webhook_url        VARCHAR(1000),
+    secret             TEXT,
+    access_key_id      TEXT,
+    access_key_secret  TEXT,
+    custom_config      TEXT,
+    enabled            BOOLEAN DEFAULT TRUE,
+    retry_times        INTEGER DEFAULT 3,
+    timeout_seconds    INTEGER DEFAULT 30,
+    create_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    create_by          VARCHAR(64),
+    update_by          VARCHAR(64),
+    deleted            SMALLINT DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_mf_integration_config_type ON mf_integration_config(type);
+CREATE INDEX IF NOT EXISTS idx_mf_integration_config_enabled ON mf_integration_config(enabled);
+CREATE INDEX IF NOT EXISTS idx_mf_integration_config_deleted ON mf_integration_config(deleted);
+COMMENT ON TABLE mf_integration_config IS '第三方集成配置表';
+
+
+-- ===== V11__rbac_seed.sql =====
+-- =============================================================
+-- V11__rbac_seed.sql
+-- 喵流 MeowFlow RBAC 权限数据初始化
+-- 创建日期: 2026-09-12
+-- 说明: 补充 V4 中缺失的权限和角色关联数据
+--       可独立执行，用于修复权限数据为空的问题
+-- =============================================================
+
+-- ============================================================
+-- 1. 确保管理员账号存在
+-- =============================================================
+INSERT INTO mf_sys_user (id, username, password, nickname, real_name, status, email)
+VALUES (1, 'admin', '$2a$10$227xlzemuj7i1ZGBEuFl7./qmvvUeaZK0UFXRVHcBUViPwK0PRheq', '超级管理员', '系统管理员', 'active', 'admin@meowflow.com')
+ON CONFLICT (username) DO UPDATE SET
+    password = EXCLUDED.password,
+    nickname = EXCLUDED.nickname,
+    real_name = EXCLUDED.real_name,
+    status = EXCLUDED.status;
+
+
+
+-- ============================================================
+-- 2. 默认角色（如果不存在）
+-- =============================================================
+INSERT INTO mf_sys_role (code, name, data_scope, sort, status, remark)
+VALUES
+    ('super_admin', '超级管理员', 'all', 0, 'active', '拥有所有权限'),
+    ('admin', '管理员', 'org', 1, 'active', '组织级管理员'),
+    ('member', '成员', 'self', 2, 'active', '普通成员,可见自己的资源'),
+    ('viewer', '访客', 'self', 3, 'active', '只读')
+ON CONFLICT (code) DO NOTHING;
+
+-- ============================================================
+-- 3. 超级管理员权限菜单（完整的菜单树）
+-- =============================================================
+INSERT INTO mf_sys_permission (id, parent_id, type, name, code, path, icon, sort, status)
+VALUES
+    -- 顶级菜单
+    (1, 0, 'menu', '工作台', 'dashboard', '/dashboard', 'fa-tachometer-alt', 0, 'active'),
+    (2, 0, 'menu', '工作流', 'workflow', '/workflows', 'fa-diagram-project', 1, 'active'),
+    (3, 2, 'menu', '工作流列表', 'workflow:list', '/workflows', '', 1, 'active'),
+    (4, 2, 'menu', '工作流编辑器', 'workflow:editor', '/editor', '', 2, 'active'),
+    (5, 0, 'menu', '模板市场', 'template', '/templates', 'fa-puzzle-piece', 2, 'active'),
+    (6, 5, 'menu', '浏览模板', 'template:explore', '/explore', '', 0, 'active'),
+    (7, 5, 'menu', '我的收藏', 'template:favorites', '/templates/favorites', '', 1, 'active'),
+    (8, 0, 'menu', '执行日志', 'log', '/logs', 'fa-clipboard-list', 3, 'active'),
+    (9, 0, 'menu', '统计看板', 'statistics', '/statistics', 'fa-chart-line', 4, 'active'),
+    (10, 0, 'menu', '告警中心', 'alert', '/alerts', 'fa-bell', 5, 'active'),
+    (11, 0, 'menu', '用户中心', 'user', '/profile', 'fa-user', 6, 'active'),
+    (12, 0, 'menu', '团队管理', 'team', '/team', 'fa-users', 7, 'active'),
+    (13, 0, 'menu', '系统设置', 'system', '/settings', 'fa-gear', 8, 'active'),
+    
+    -- 工作流按钮权限
+    (100, 3, 'btn', '新建工作流', 'workflow:create', NULL, NULL, 1, 'active'),
+    (101, 3, 'btn', '编辑工作流', 'workflow:edit', NULL, NULL, 2, 'active'),
+    (102, 3, 'btn', '删除工作流', 'workflow:delete', NULL, NULL, 3, 'active'),
+    (103, 3, 'btn', '执行工作流', 'workflow:run', NULL, NULL, 4, 'active'),
+    (104, 3, 'btn', '发布工作流', 'workflow:publish', NULL, NULL, 5, 'active'),
+    (105, 3, 'btn', '导出工作流', 'workflow:export', NULL, NULL, 6, 'active'),
+    (106, 3, 'btn', '复制工作流', 'workflow:copy', NULL, NULL, 7, 'active'),
+    
+    -- 编辑器按钮权限
+    (110, 4, 'btn', '保存版本', 'editor:save', NULL, NULL, 1, 'active'),
+    (111, 4, 'btn', '发布版本', 'editor:publish', NULL, NULL, 2, 'active'),
+    (112, 4, 'btn', '执行调试', 'editor:debug', NULL, NULL, 3, 'active'),
+    (113, 4, 'btn', '停止调试', 'editor:stop', NULL, NULL, 4, 'active'),
+    (114, 4, 'btn', '添加节点', 'editor:addNode', NULL, NULL, 5, 'active'),
+    (115, 4, 'btn', '删除节点', 'editor:deleteNode', NULL, NULL, 6, 'active'),
+    
+    -- 模板按钮权限
+    (120, 5, 'btn', '创建模板', 'template:create', NULL, NULL, 1, 'active'),
+    (121, 5, 'btn', '编辑模板', 'template:edit', NULL, NULL, 2, 'active'),
+    (122, 5, 'btn', '删除模板', 'template:delete', NULL, NULL, 3, 'active'),
+    (123, 5, 'btn', '使用模板', 'template:use', NULL, NULL, 4, 'active'),
+    (124, 5, 'btn', '点赞模板', 'template:like', NULL, NULL, 5, 'active'),
+    (125, 5, 'btn', '收藏模板', 'template:favorite', NULL, NULL, 6, 'active'),
+    (126, 5, 'btn', '评分模板', 'template:rating', NULL, NULL, 7, 'active'),
+    
+    -- 执行日志按钮权限
+    (130, 8, 'btn', '查看详情', 'log:view', NULL, NULL, 1, 'active'),
+    (131, 8, 'btn', '重新执行', 'log:rerun', NULL, NULL, 2, 'active'),
+    (132, 8, 'btn', '取消执行', 'log:cancel', NULL, NULL, 3, 'active'),
+    (133, 8, 'btn', '导出日志', 'log:export', NULL, NULL, 4, 'active'),
+    
+    -- 告警中心按钮权限
+    (140, 10, 'btn', '创建规则', 'alert:rule:create', NULL, NULL, 1, 'active'),
+    (141, 10, 'btn', '编辑规则', 'alert:rule:edit', NULL, NULL, 2, 'active'),
+    (142, 10, 'btn', '删除规则', 'alert:rule:delete', NULL, NULL, 3, 'active'),
+    (143, 10, 'btn', '创建沉默', 'alert:silence:create', NULL, NULL, 4, 'active'),
+    (144, 10, 'btn', '解决告警', 'alert:resolve', NULL, NULL, 5, 'active'),
+    
+    -- 系统设置子菜单
+    (150, 13, 'menu', 'AI 模型配置', 'system:model', '/settings/model', 'fa-robot', 1, 'active'),
+    (151, 13, 'menu', '集成配置', 'system:integration', '/settings/integration', 'fa-plug', 2, 'active'),
+    (152, 13, 'menu', '告警规则', 'system:alert', '/settings/alert', 'fa-bell', 3, 'active'),
+    (153, 13, 'menu', '执行器节点', 'system:executor', '/settings/executor', 'fa-server', 4, 'active'),
+    (154, 13, 'menu', 'Webhook 管理', 'system:webhook', '/settings/webhook', 'fa-link', 5, 'active'),
+    
+    -- 系统设置按钮权限
+    (160, 150, 'btn', '添加模型', 'system:model:create', NULL, NULL, 1, 'active'),
+    (161, 150, 'btn', '编辑模型', 'system:model:edit', NULL, NULL, 2, 'active'),
+    (162, 150, 'btn', '删除模型', 'system:model:delete', NULL, NULL, 3, 'active'),
+    (163, 151, 'btn', '添加集成', 'system:integration:create', NULL, NULL, 1, 'active'),
+    (164, 151, 'btn', '编辑集成', 'system:integration:edit', NULL, NULL, 2, 'active'),
+    (165, 151, 'btn', '删除集成', 'system:integration:delete', NULL, NULL, 3, 'active'),
+    
+    -- 团队管理按钮权限
+    (170, 12, 'btn', '邀请成员', 'team:invite', NULL, NULL, 1, 'active'),
+    (171, 12, 'btn', '移除成员', 'team:remove', NULL, NULL, 2, 'active'),
+    (172, 12, 'btn', '修改角色', 'team:role', NULL, NULL, 3, 'active'),
+    (173, 12, 'btn', '创建团队', 'team:create', NULL, NULL, 4, 'active'),
+    
+    -- 用户中心按钮权限
+    (180, 11, 'btn', '修改资料', 'user:profile:edit', NULL, NULL, 1, 'active'),
+    (181, 11, 'btn', '修改密码', 'user:password:change', NULL, NULL, 2, 'active'),
+    (182, 11, 'btn', '上传头像', 'user:avatar:upload', NULL, NULL, 3, 'active')
+ON CONFLICT (id) DO NOTHING;
+
+-- 修正 id 序列
+SELECT setval(pg_get_serial_sequence('mf_sys_permission','id'),
+    GREATEST((SELECT MAX(id) FROM mf_sys_permission), 1));
+
+-- ============================================================
+-- 4. 管理员与角色关联
+-- =============================================================
+-- 先删除可能存在的错误关联
+DELETE FROM mf_sys_user_role WHERE user_id = 1;
+
+-- 重新插入正确关联
+INSERT INTO mf_sys_user_role (user_id, role_id, org_id)
+SELECT 1, r.id, 0
+FROM mf_sys_role r
+WHERE r.code = 'super_admin'
+ON CONFLICT (user_id, role_id, org_id) DO NOTHING;
+
+-- ============================================================
+-- 5. 超级管理员拥有所有权限
+-- =============================================================
+DELETE FROM mf_sys_role_permission WHERE role_id IN (
+    SELECT id FROM mf_sys_role WHERE code = 'super_admin'
+);
+
+INSERT INTO mf_sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM mf_sys_role r, mf_sys_permission p
+WHERE r.code = 'super_admin'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- ============================================================
+-- 6. 管理员拥有基本权限（不含系统设置）
+-- =============================================================
+DELETE FROM mf_sys_role_permission WHERE role_id IN (
+    SELECT id FROM mf_sys_role WHERE code = 'admin'
+);
+
+INSERT INTO mf_sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM mf_sys_role r, mf_sys_permission p
+WHERE r.code = 'admin'
+AND p.id NOT IN (150, 151, 152, 153, 154, 160, 161, 162, 163, 164, 165)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- ============================================================
+-- 7. 成员拥有基本操作权限
+-- =============================================================
+DELETE FROM mf_sys_role_permission WHERE role_id IN (
+    SELECT id FROM mf_sys_role WHERE code = 'member'
+);
+
+INSERT INTO mf_sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM mf_sys_role r, mf_sys_permission p
+WHERE r.code = 'member'
+AND p.id IN (
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+    100, 101, 103, 106,
+    110, 111, 112, 114,
+    120, 123, 124, 125, 126,
+    130, 131,
+    140, 143, 144,
+    170, 172,
+    180, 181
+)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- ============================================================
+-- 8. 访客只读权限
+-- =============================================================
+DELETE FROM mf_sys_role_permission WHERE role_id IN (
+    SELECT id FROM mf_sys_role WHERE code = 'viewer'
+);
+
+INSERT INTO mf_sys_role_permission (role_id, permission_id)
+SELECT r.id, p.id
+FROM mf_sys_role r, mf_sys_permission p
+WHERE r.code = 'viewer'
+AND p.type = 'menu'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- ============================================================
+-- 9. 验证数据
+-- =============================================================
+DO $$
+DECLARE
+    user_count INTEGER;
+    role_count INTEGER;
+    perm_count INTEGER;
+    rp_count INTEGER;
+    admin_perm_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO user_count FROM mf_sys_user WHERE username = 'admin';
+    SELECT COUNT(*) INTO role_count FROM mf_sys_role;
+    SELECT COUNT(*) INTO perm_count FROM mf_sys_permission;
+    SELECT COUNT(*) INTO rp_count FROM mf_sys_role_permission;
+    SELECT COUNT(*) INTO admin_perm_count 
+    FROM mf_sys_role_permission rp
+    JOIN mf_sys_role r ON rp.role_id = r.id
+    WHERE r.code = 'super_admin';
+    
+    RAISE NOTICE '=== RBAC 数据初始化验证 ===';
+    RAISE NOTICE '管理员账号: %', user_count;
+    RAISE NOTICE '角色数量: %', role_count;
+    RAISE NOTICE '权限数量: %', perm_count;
+    RAISE NOTICE '角色权限关联: %', rp_count;
+    RAISE NOTICE '超级管理员权限数: %', admin_perm_count;
+    
+    IF user_count = 0 THEN
+        RAISE WARNING '警告: 管理员账号不存在!';
+    END IF;
+    
+    IF admin_perm_count = 0 THEN
+        RAISE WARNING '警告: 超级管理员没有任何权限!';
+    END IF;
+END $$;
+
+-- ============================================================
+-- 10. 输出结果
+-- =============================================================
+SELECT '=== 超级管理员菜单权限 ===' AS info;
+SELECT p.id, p.name, p.code, p.type
+FROM mf_sys_role_permission rp
+JOIN mf_sys_role r ON rp.role_id = r.id
+JOIN mf_sys_permission p ON rp.permission_id = p.id
+WHERE r.code = 'super_admin'
+AND p.type = 'menu'
+ORDER BY p.id;
+
+SELECT '=== 超级管理员按钮权限 ===' AS info;
+SELECT p.id, p.name, p.code, p.type
+FROM mf_sys_role_permission rp
+JOIN mf_sys_role r ON rp.role_id = r.id
+JOIN mf_sys_permission p ON rp.permission_id = p.id
+WHERE r.code = 'super_admin'
+AND p.type = 'btn'
+ORDER BY p.id;
+
+
+
+-- ===== V12__template_tag_fix.sql =====
+-- =============================================================
+-- V12__template_tag_fix.sql
+-- 模板标签、分类字段与非整型 template_version 修复
+-- 注意：模板主体种子由 V7 负责，本迁移不再重复插入模板。
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS mf_tpl_tag (
+    id           BIGSERIAL PRIMARY KEY,
+    name         VARCHAR(64) NOT NULL UNIQUE,
+    color        VARCHAR(16),
+    sort         INT DEFAULT 0,
+    usage_count  BIGINT DEFAULT 0,
+    create_by    BIGINT,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by    BIGINT,
+    update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark       VARCHAR(255)
+);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_tag_usage ON mf_tpl_tag(usage_count DESC);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_tag_sort ON mf_tpl_tag(sort);
+
+CREATE TABLE IF NOT EXISTS mf_tpl_template_tag (
+    template_id BIGINT NOT NULL,
+    tag_id      BIGINT NOT NULL,
+    PRIMARY KEY (template_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_tag_tag ON mf_tpl_template_tag(tag_id);
+
+-- 分类继续复用 mf_wf_category，补齐 TemplateCategory 实体字段。
+ALTER TABLE mf_wf_category
+    ADD COLUMN IF NOT EXISTS level       INT DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS description VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS remark      VARCHAR(255);
+
+INSERT INTO mf_wf_category (parent_id, code, name, icon, sort, level, description)
+VALUES
+    (0, 'cs',      '客服场景', 'fa-headset',    1, 1, '智能客服、工单处理、用户反馈分析等'),
+    (0, 'hr',      '人力资源', 'fa-users',      2, 1, '简历筛选、审批流程、员工管理等'),
+    (0, 'ops',     '运营提效', 'fa-chart-line', 3, 1, '数据报告生成、文案创作、定时任务等'),
+    (0, 'finance', '财务行政', 'fa-calculator', 4, 1, '发票处理、报销审批、应收款管理等'),
+    (0, 'data',    '数据处理', 'fa-database',   5, 1, 'ETL同步、数据清洗、备份任务等'),
+    (0, 'general', '通用场景', 'fa-cube',       9, 1, 'Webhook接入、定时任务、通用脚本等')
+ON CONFLICT (code) DO UPDATE SET
+    parent_id = EXCLUDED.parent_id,
+    name = EXCLUDED.name,
+    icon = EXCLUDED.icon,
+    sort = EXCLUDED.sort,
+    level = EXCLUDED.level,
+    description = EXCLUDED.description;
+
+-- 按 template.scene 对齐实际分类 ID，避免依赖固定自增 ID。
+UPDATE mf_tpl_template t
+SET category_id = c.id
+FROM mf_wf_category c
+WHERE t.scene = c.code
+  AND (t.category_id IS DISTINCT FROM c.id);
+
+INSERT INTO mf_tpl_tag (name, color, sort)
+VALUES
+    ('客服', '#f472b6', 1), ('AI', '#f97316', 2), ('自动回复', '#6366f1', 3),
+    ('工单', '#fbbf24', 4), ('反馈', '#22d3ee', 5), ('HR', '#34d399', 6),
+    ('招聘', '#10b981', 7), ('审批', '#8b5cf6', 8), ('表单', '#06b6d4', 9),
+    ('入职', '#a855f7', 10), ('运营', '#fbbf24', 11), ('会议', '#22d3ee', 12),
+    ('日报', '#60a5fa', 13), ('定时', '#a78bfa', 14), ('文案', '#ec4899', 15),
+    ('数据', '#22d3ee', 16), ('财务', '#10b981', 17), ('发票', '#06b6d4', 18),
+    ('催收', '#ef4444', 19), ('同步', '#0ea5e9', 20), ('通用', '#9ca3af', 21),
+    ('Webhook', '#8b5cf6', 22), ('回调', '#ec4899', 23), ('备份', '#22c55e', 24),
+    ('清洗', '#0ea5e9', 25), ('电商', '#f59e0b', 26), ('团队', '#3b82f6', 27),
+    ('知识库', '#06b6d4', 28), ('RAG', '#8b5cf6', 29), ('自动化', '#22c55e', 30)
+ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color, sort = EXCLUDED.sort;
+
+
+-- ===== V14__schema_reconciliation.sql =====
+-- =============================================================
+-- V14__schema_reconciliation.sql
+-- 以 Java 实体为准，统一历史库、脚本库和空库之间的结构漂移。
+-- 本迁移必须可重复执行。
+-- =============================================================
+
+-- 通用审计函数：仅更新目标表中真实存在的列。
+CREATE OR REPLACE FUNCTION mf_set_audit_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF to_jsonb(NEW) ? 'update_time' THEN
+        NEW := jsonb_populate_record(NEW, jsonb_build_object('update_time', CURRENT_TIMESTAMP));
+    END IF;
+    IF TG_OP = 'INSERT' AND to_jsonb(NEW) ? 'create_time' THEN
+        IF (to_jsonb(NEW) ->> 'create_time') IS NULL THEN
+            NEW := jsonb_populate_record(NEW, jsonb_build_object('create_time', CURRENT_TIMESTAMP));
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================
+-- 1. 缺失表
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS mf_log_event (
+    id            BIGINT PRIMARY KEY,
+    trace_id      VARCHAR(64),
+    module        VARCHAR(64),
+    level         VARCHAR(16),
+    type          VARCHAR(64),
+    message       TEXT,
+    payload       TEXT,
+    user_id       BIGINT,
+    user_name     VARCHAR(128),
+    ip            VARCHAR(64),
+    duration      BIGINT,
+    status        INTEGER,
+    error_message TEXT,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE SEQUENCE IF NOT EXISTS mf_log_event_id_seq;
+CREATE INDEX IF NOT EXISTS idx_mf_log_event_trace_id ON mf_log_event(trace_id);
+CREATE INDEX IF NOT EXISTS idx_mf_log_event_module ON mf_log_event(module);
+CREATE INDEX IF NOT EXISTS idx_mf_log_event_level ON mf_log_event(level);
+CREATE INDEX IF NOT EXISTS idx_mf_log_event_type ON mf_log_event(type);
+CREATE INDEX IF NOT EXISTS idx_mf_log_event_user_id ON mf_log_event(user_id);
+CREATE INDEX IF NOT EXISTS idx_mf_log_event_create_time ON mf_log_event(create_time);
+
+CREATE TABLE IF NOT EXISTS knowledge_base (
+    id                BIGSERIAL PRIMARY KEY,
+    name              VARCHAR(128) NOT NULL,
+    description       TEXT,
+    vector_store_type VARCHAR(64),
+    dimension         INTEGER,
+    status            VARCHAR(16) DEFAULT 'active',
+    config            TEXT,
+    create_by         VARCHAR(64),
+    create_time       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by         VARCHAR(64),
+    update_time       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted           BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS document (
+    id                BIGSERIAL PRIMARY KEY,
+    title             VARCHAR(255) NOT NULL,
+    content           TEXT,
+    content_type      VARCHAR(64),
+    file_size         BIGINT,
+    file_path         VARCHAR(512),
+    knowledge_base_id BIGINT NOT NULL,
+    chunk_count       INTEGER DEFAULT 0,
+    status            VARCHAR(16) DEFAULT 'pending',
+    error_message     TEXT,
+    metadata          TEXT,
+    create_by         VARCHAR(64),
+    create_time       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by         VARCHAR(64),
+    update_time       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted           BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS document_chunk (
+    id          BIGSERIAL PRIMARY KEY,
+    document_id BIGINT NOT NULL,
+    content     TEXT,
+    chunk_index INTEGER,
+    token_count INTEGER,
+    vector_key  VARCHAR(128),
+    metadata    TEXT,
+    create_by   VARCHAR(64),
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by   VARCHAR(64),
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted     BOOLEAN DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_document_kb ON document(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_document_status ON document(status);
+CREATE INDEX IF NOT EXISTS idx_document_chunk_doc ON document_chunk(document_id);
+
+CREATE TABLE IF NOT EXISTS mf_mon_alert_silence (
+    id             BIGSERIAL PRIMARY KEY,
+    name           VARCHAR(128) NOT NULL,
+    match_type     VARCHAR(32) NOT NULL,
+    alert_rule_id  BIGINT,
+    alert_id       BIGINT,
+    target_pattern VARCHAR(256),
+    start_time     TIMESTAMP NOT NULL,
+    end_time       TIMESTAMP NOT NULL,
+    reason         VARCHAR(512),
+    create_by      VARCHAR(64),
+    create_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by      VARCHAR(64),
+    update_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_mf_mon_alert_silence_match_type ON mf_mon_alert_silence(match_type);
+CREATE INDEX IF NOT EXISTS idx_mf_mon_alert_silence_rule_id ON mf_mon_alert_silence(alert_rule_id);
+CREATE INDEX IF NOT EXISTS idx_mf_mon_alert_silence_alert_id ON mf_mon_alert_silence(alert_id);
+CREATE INDEX IF NOT EXISTS idx_mf_mon_alert_silence_time_range ON mf_mon_alert_silence(start_time, end_time);
+
+CREATE TABLE IF NOT EXISTS mf_tpl_tag (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(64) NOT NULL UNIQUE,
+    color       VARCHAR(16),
+    sort        INTEGER DEFAULT 0,
+    usage_count BIGINT DEFAULT 0,
+    create_by   BIGINT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by   BIGINT,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark      VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS mf_tpl_template_tag (
+    template_id BIGINT NOT NULL,
+    tag_id      BIGINT NOT NULL,
+    PRIMARY KEY (template_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_tag_tag ON mf_tpl_template_tag(tag_id);
+
+CREATE TABLE IF NOT EXISTS mf_tpl_review_record (
+    id            BIGSERIAL PRIMARY KEY,
+    template_id   BIGINT,
+    reviewer_id   BIGINT,
+    reviewer_name VARCHAR(64),
+    action        VARCHAR(32),
+    comment       TEXT,
+    review_time   TIMESTAMP,
+    create_by     BIGINT,
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_by     BIGINT,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remark        VARCHAR(500)
+);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_review_record_template ON mf_tpl_review_record(template_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_review_record_reviewer ON mf_tpl_review_record(reviewer_id);
+
+CREATE TABLE IF NOT EXISTS mf_wf_execution_snapshot (
+    id               BIGSERIAL PRIMARY KEY,
+    execution_id     BIGINT NOT NULL,
+    workflow_id      BIGINT,
+    version          VARCHAR(32),
+    status           VARCHAR(32),
+    completed_nodes  TEXT,
+    variables        TEXT,
+    loop_cursors     TEXT,
+    waiting_reason   VARCHAR(64),
+    pending_edge_id  VARCHAR(64),
+    last_event_id    VARCHAR(64),
+    snapshot_version INTEGER DEFAULT 1,
+    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mf_wf_execution_snapshot_execution ON mf_wf_execution_snapshot(execution_id);
+
+-- =============================================================
+-- 2. 已有表补列
+-- =============================================================
+
+ALTER TABLE mf_sys_permission
+    ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE mf_sys_post
+    ADD COLUMN IF NOT EXISTS post_code VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS post_name VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS post_sort INTEGER DEFAULT 0;
+
+ALTER TABLE mf_sys_role_permission
+    ADD COLUMN IF NOT EXISTS create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE mf_sys_audit_log
+    ADD COLUMN IF NOT EXISTS request_method VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS request_params TEXT,
+    ADD COLUMN IF NOT EXISTS response_result TEXT,
+    ADD COLUMN IF NOT EXISTS cost_time BIGINT,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS error_msg TEXT,
+    ADD COLUMN IF NOT EXISTS operate_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE mf_wf_category
+    ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS description VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS remark VARCHAR(255);
+
+ALTER TABLE mf_tpl_review
+    ADD COLUMN IF NOT EXISTS reviewer_id BIGINT,
+    ADD COLUMN IF NOT EXISTS action VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS comment TEXT,
+    ADD COLUMN IF NOT EXISTS result VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS create_by BIGINT,
+    ADD COLUMN IF NOT EXISTS update_by BIGINT,
+    ADD COLUMN IF NOT EXISTS update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS remark VARCHAR(500);
+
+ALTER TABLE mf_ai_invoke_log
+    ADD COLUMN IF NOT EXISTS workflow_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS model VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS provider VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE mf_ai_model
+    ADD COLUMN IF NOT EXISTS capabilities VARCHAR(500);
+
+-- 历史重复数据去重后建立业务唯一索引
+DELETE FROM mf_ai_model a
+USING mf_ai_model b
+WHERE a.id > b.id
+  AND a.provider = b.provider
+  AND a.model_type = b.model_type;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mf_ai_model_provider_model
+    ON mf_ai_model(provider, model_type);
+-- 兼容旧字段回填
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_post' AND column_name='code') THEN
+        EXECUTE 'UPDATE mf_sys_post SET post_code = COALESCE(post_code, code)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_post' AND column_name='name') THEN
+        EXECUTE 'UPDATE mf_sys_post SET post_name = COALESCE(post_name, name)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_post' AND column_name='sort') THEN
+        EXECUTE 'UPDATE mf_sys_post SET post_sort = COALESCE(post_sort, sort)';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_audit_log' AND column_name='method') THEN
+        EXECUTE 'UPDATE mf_sys_audit_log SET request_method = COALESCE(request_method, method)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_audit_log' AND column_name='params') THEN
+        EXECUTE 'UPDATE mf_sys_audit_log SET request_params = COALESCE(request_params, params::text)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_audit_log' AND column_name='result') THEN
+        EXECUTE 'UPDATE mf_sys_audit_log SET response_result = COALESCE(response_result, result)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_audit_log' AND column_name='cost_ms') THEN
+        EXECUTE 'UPDATE mf_sys_audit_log SET cost_time = COALESCE(cost_time, cost_ms)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_sys_audit_log' AND column_name='created_at') THEN
+        EXECUTE 'UPDATE mf_sys_audit_log SET operate_time = COALESCE(operate_time, created_at)';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_ai_invoke_log' AND column_name='created_at') THEN
+        EXECUTE 'UPDATE mf_ai_invoke_log SET create_time = COALESCE(create_time, created_at)';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_ai_invoke_log' AND column_name='model_id') THEN
+        EXECUTE 'UPDATE mf_ai_invoke_log SET model = COALESCE(model, model_id::text)';
+    END IF;
+END $$;
+
+-- 修正明显类型漂移
+ALTER TABLE mf_mon_alert_rule
+    ALTER COLUMN enabled TYPE BOOLEAN USING
+        CASE WHEN enabled IS NULL THEN TRUE
+             WHEN enabled::text IN ('1','true','TRUE') THEN TRUE
+             ELSE FALSE END;
+
+ALTER TABLE mf_mon_alert_rule
+    ALTER COLUMN enabled SET DEFAULT TRUE;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mf_mon_alert_rule' AND column_name='auto_resolve') THEN
+        EXECUTE 'ALTER TABLE mf_mon_alert_rule ALTER COLUMN auto_resolve TYPE BOOLEAN USING CASE WHEN auto_resolve IS NULL THEN FALSE WHEN auto_resolve::text IN (''1'',''true'',''TRUE'') THEN TRUE ELSE FALSE END';
+        EXECUTE 'ALTER TABLE mf_mon_alert_rule ALTER COLUMN auto_resolve SET DEFAULT FALSE';
+    END IF;
+END $$;
+
+-- 新增表的审计触发器
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT t.table_name
+        FROM information_schema.tables t
+        WHERE t.table_schema='public'
+          AND t.table_name IN ('mf_log_event','knowledge_base','document','document_chunk',
+                               'mf_mon_alert_silence','mf_tpl_tag','mf_tpl_review_record',
+                               'mf_wf_execution_snapshot')
+    LOOP
+        EXECUTE format('CREATE OR REPLACE TRIGGER trg_%s_audit BEFORE INSERT OR UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION mf_set_audit_columns()', r.table_name, r.table_name);
+    END LOOP;
+END $$;
+
+
+
+
+-- ===== V15__ai_model_seed.sql =====
+-- =============================================================
+-- V15__ai_model_seed.sql
+-- 以 AIModelEntity 的实际映射为准：model_type 保存模型标识(modelKey)。
+-- 默认全部禁用，配置真实 API Key 后再启用。
+-- =============================================================
+
+INSERT INTO mf_ai_model
+    (name, provider, model_type, api_base, enabled, is_default, priority, max_tokens, capabilities)
+VALUES
+    ('GPT-4o',              'OpenAI',    'gpt-4o',              'https://api.openai.com/v1',                            FALSE, FALSE, 100, 16384, 'chat,vision,function_call'),
+    ('GPT-4o Mini',         'OpenAI',    'gpt-4o-mini',         'https://api.openai.com/v1',                            FALSE, FALSE, 95,  16384, 'chat,vision,function_call'),
+    ('Claude 3.5 Sonnet',   'Anthropic', 'claude-3-5-sonnet-latest', 'https://api.anthropic.com',                        FALSE, FALSE, 98,  8192,  'chat,vision,function_call'),
+    ('Claude 3 Haiku',      'Anthropic', 'claude-3-haiku-20240307',  'https://api.anthropic.com',                        FALSE, FALSE, 80,  4096,  'chat,vision'),
+    ('DeepSeek-V3',         'DeepSeek',  'deepseek-chat',       'https://api.deepseek.com/v1',                           FALSE, FALSE, 75,  8192,  'chat,function_call'),
+    ('qwen-plus',           'Aliyun',    'qwen-plus',           'https://dashscope.aliyuncs.com/compatible-mode/v1',     FALSE, FALSE, 70,  8192,  'chat,function_call'),
+    ('qwen-max',            'Aliyun',    'qwen-max',            'https://dashscope.aliyuncs.com/compatible-mode/v1',     FALSE, FALSE, 68,  8192,  'chat,function_call'),
+    ('text-embedding-v2',   'Aliyun',    'text-embedding-v2',   'https://dashscope.aliyuncs.com/compatible-mode/v1',     FALSE, FALSE, 60,  0,     'embedding'),
+    ('glm-4',               'Zhipu',     'glm-4',               'https://open.bigmodel.cn/api/paas/v4',                  FALSE, FALSE, 65,  4096,  'chat,function_call'),
+    ('glm-4-flash',         'Zhipu',     'glm-4-flash',         'https://open.bigmodel.cn/api/paas/v4',                  FALSE, FALSE, 62,  4096,  'chat')
+ON CONFLICT (provider, model_type) DO UPDATE SET
+    name = EXCLUDED.name,
+    api_base = EXCLUDED.api_base,
+    priority = EXCLUDED.priority,
+    max_tokens = EXCLUDED.max_tokens,
+    capabilities = EXCLUDED.capabilities;
+
+
+-- ===== V16__retire_legacy_tables.sql =====
+-- =============================================================
+-- V16__retire_legacy_tables.sql
+-- 退役重复的旧表，先迁移数据再删除。
+-- =============================================================
+
+-- 旧知识库表 -> knowledge_base/document/document_chunk
+INSERT INTO knowledge_base
+    (id, name, description, vector_store_type, dimension, status, config,
+     create_time, update_time, deleted)
+SELECT id,
+       name,
+       description,
+       'pgvector',
+       NULL,
+       COALESCE(status, 'active'),
+       jsonb_build_object(
+           'legacy_embedding_id', embedding_id,
+           'chunk_size', chunk_size,
+           'overlap', overlap,
+           'owner_id', owner_id,
+           'doc_count', doc_count
+       )::text,
+       create_time,
+       update_time,
+       FALSE
+FROM mf_ai_knowledge
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO document
+    (id, title, content, content_type, file_size, file_path, knowledge_base_id,
+     chunk_count, status, error_message, metadata, create_time, update_time, deleted)
+SELECT id,
+       name,
+       NULL,
+       file_type,
+       file_size,
+       url,
+       kb_id,
+       COALESCE(chunk_count, 0),
+       COALESCE(status, 'pending'),
+       error_message,
+       COALESCE(parse_config::text, '{}'),
+       create_time,
+       update_time,
+       FALSE
+FROM mf_ai_document
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO document_chunk
+    (id, document_id, content, chunk_index, token_count, vector_key, metadata,
+     create_time, update_time, deleted)
+SELECT id,
+       document_id,
+       content,
+       chunk_index,
+       token_count,
+       NULL,
+       COALESCE(metadata::text, '{}'),
+       create_time,
+       create_time,
+       FALSE
+FROM mf_ai_chunk
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('knowledge_base','id'), GREATEST((SELECT MAX(id) FROM knowledge_base), 1));
+SELECT setval(pg_get_serial_sequence('document','id'), GREATEST((SELECT MAX(id) FROM document), 1));
+SELECT setval(pg_get_serial_sequence('document_chunk','id'), GREATEST((SELECT MAX(id) FROM document_chunk), 1));
+
+DROP TABLE IF EXISTS mf_ai_chunk;
+DROP TABLE IF EXISTS mf_ai_document;
+DROP TABLE IF EXISTS mf_ai_knowledge;
+
+-- 旧集成配置表 -> mf_integration_config
+INSERT INTO mf_integration_config
+    (type, name, webhook_url, secret, access_key_id, access_key_secret,
+     custom_config, enabled, retry_times, timeout_seconds,
+     create_time, update_time, deleted)
+SELECT c.type,
+       c.name,
+       c.config ->> 'webhook',
+       c.config ->> 'secret',
+       c.config ->> 'accessKey',
+       c.config ->> 'accessKeySecret',
+       c.config::text,
+       COALESCE(c.enabled, TRUE),
+       3,
+       30,
+       c.create_time,
+       c.update_time,
+       0
+FROM mf_int_config c
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM mf_integration_config n
+    WHERE n.type = c.type
+      AND n.name = c.name
+      AND n.deleted = 0
+);
+
+DROP TABLE IF EXISTS mf_int_send_log;
+DROP TABLE IF EXISTS mf_int_mcp_tool;
+DROP TABLE IF EXISTS mf_int_config;
+
+
+-- ===== V17__restore_alert_rules.sql =====
+-- ============================================================
+-- 恢复默认告警规则，并兼容曾被测试数据清理掉的开发库
+-- ============================================================
+ALTER TABLE mf_mon_alert_rule
+    ADD COLUMN IF NOT EXISTS description VARCHAR(512);
+
+INSERT INTO mf_mon_alert_rule (name, metric, condition, threshold, duration_s, channels, enabled, owner_id)
+SELECT '执行失败告警', 'execution_failed', 'gt', 5, 60, '["email"]'::jsonb, TRUE, 1
+WHERE NOT EXISTS (SELECT 1 FROM mf_mon_alert_rule WHERE name = '执行失败告警');
+
+INSERT INTO mf_mon_alert_rule (name, metric, condition, threshold, duration_s, channels, enabled, owner_id)
+SELECT '执行超时告警', 'execution_timeout', 'gt', 3, 60, '["dingtalk"]'::jsonb, TRUE, 1
+WHERE NOT EXISTS (SELECT 1 FROM mf_mon_alert_rule WHERE name = '执行超时告警');
+
+INSERT INTO mf_mon_alert_rule (name, metric, condition, threshold, duration_s, channels, enabled, owner_id)
+SELECT '成本超限告警', 'cost_exceeded', 'gt', 100, 3600, '["email"]'::jsonb, TRUE, 1
+WHERE NOT EXISTS (SELECT 1 FROM mf_mon_alert_rule WHERE name = '成本超限告警');
+
+
+-- ===== V18__restore_critical_indexes.sql =====
+-- ============================================================
+-- 补齐当前开发库缺失的关键性能索引，兼容早期未完整执行 V2 的库
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_mf_sys_user_username ON mf_sys_user(username);
+CREATE INDEX IF NOT EXISTS idx_mf_sys_user_email ON mf_sys_user(email);
+
+CREATE INDEX IF NOT EXISTS idx_mf_wf_workflow_owner ON mf_wf_workflow(owner_id);
+CREATE INDEX IF NOT EXISTS idx_mf_wf_workflow_status ON mf_wf_workflow(status);
+
+CREATE INDEX IF NOT EXISTS idx_mf_wf_execution_workflow ON mf_wf_execution(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_mf_wf_execution_status ON mf_wf_execution(status);
+
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_category ON mf_tpl_template(category_id);
+CREATE INDEX IF NOT EXISTS idx_mf_tpl_template_review_status ON mf_tpl_template(review_status);
+
+CREATE INDEX IF NOT EXISTS idx_mf_ai_model_enabled ON mf_ai_model(enabled);
+
+
+-- ===== V19__restore_integration_configs.sql =====
+-- ============================================================
+-- 恢复默认集成配置（保持禁用，待配置真实凭据后启用）
+-- ============================================================
+INSERT INTO mf_integration_config (type, name, enabled, retry_times, timeout_seconds, deleted)
+SELECT v.type, v.name, FALSE, 3, 30, 0
+FROM (VALUES
+    ('dingtalk', '钉钉机器人'),
+    ('wxwork', '企业微信机器人'),
+    ('feishu', '飞书机器人'),
+    ('email', 'SMTP 邮件'),
+    ('sms', '阿里云短信')
+) AS v(type, name)
+WHERE NOT EXISTS (
+    SELECT 1 FROM mf_integration_config c WHERE c.type = v.type
+);
+
+UPDATE mf_integration_config
+SET name = 'SMTP 邮件', enabled = FALSE, deleted = 0, custom_config = NULL
+WHERE type = 'email' AND name LIKE 'smoke-%';
+
+
+-- ===== V20__normalize_ai_model_seed.sql =====
+-- ============================================================
+-- 归一化 AI 模型种子：消除 provider 别名导致的重复，并禁用未配置密钥的模型
+-- ============================================================
+UPDATE mf_ai_model
+SET capabilities = CASE model_type
+    WHEN 'gpt-4o' THEN 'chat,vision,function_call'
+    WHEN 'gpt-4o-mini' THEN 'chat,vision,function_call'
+    WHEN 'claude-3-5-sonnet-latest' THEN 'chat,vision,function_call'
+    WHEN 'claude-3-haiku-20240307' THEN 'chat,vision'
+    WHEN 'deepseek-chat' THEN 'chat,function_call'
+    WHEN 'qwen-plus' THEN 'chat,function_call'
+    WHEN 'qwen-max' THEN 'chat,function_call'
+    WHEN 'text-embedding-v2' THEN 'embedding'
+    WHEN 'glm-4' THEN 'chat,function_call'
+    WHEN 'glm-4-flash' THEN 'chat'
+    ELSE capabilities
+END
+WHERE capabilities IS NULL OR capabilities = '';
+
+WITH normalized AS (
+    SELECT id,
+           CASE
+               WHEN lower(provider) IN ('aliyun', 'ali', 'dashscope', '阿里云') THEN 'aliyun'
+               WHEN lower(provider) IN ('baidu', 'wenxin', '百度') THEN 'baidu'
+               ELSE lower(provider)
+           END AS provider_key,
+           model_type,
+           api_key,
+           capabilities
+    FROM mf_ai_model
+), ranked AS (
+    SELECT id,
+           row_number() OVER (
+               PARTITION BY provider_key, model_type
+               ORDER BY (COALESCE(api_key, '') <> '') DESC,
+                        (COALESCE(capabilities, '') <> '') DESC,
+                        id
+           ) AS rn
+    FROM normalized
+)
+DELETE FROM mf_ai_model
+WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+
+UPDATE mf_ai_model SET provider = 'Aliyun'
+WHERE lower(provider) IN ('aliyun', 'ali', 'dashscope', '阿里云');
+
+UPDATE mf_ai_model SET provider = 'Baidu'
+WHERE lower(provider) IN ('baidu', 'wenxin', '百度');
+
+UPDATE mf_ai_model
+SET enabled = FALSE, is_default = FALSE
+WHERE COALESCE(api_key, '') = '';
+
+
+-- ===== V21__alert_detail_contract.sql =====
+-- 告警记录前端展示所需的字段补齐。
+-- 历史表仅有 triggered_at/resolved_at，导致规则、通知和解决说明无法完整回显。
+ALTER TABLE mf_mon_alert_rule
+    ADD COLUMN IF NOT EXISTS severity VARCHAR(16) DEFAULT 'WARNING';
+
+UPDATE mf_mon_alert_rule
+SET severity = 'WARNING'
+WHERE severity IS NULL OR severity = '';
+
+ALTER TABLE mf_mon_alert
+    ADD COLUMN IF NOT EXISTS resolved_by VARCHAR(64);
+
+ALTER TABLE mf_mon_alert
+    ADD COLUMN IF NOT EXISTS resolution_note VARCHAR(512);
+
+COMMENT ON COLUMN mf_mon_alert_rule.severity IS '告警严重程度：INFO/WARNING/ERROR/CRITICAL';
+COMMENT ON COLUMN mf_mon_alert.resolved_by IS '解决人';
+COMMENT ON COLUMN mf_mon_alert.resolution_note IS '解决说明';
+
+-- ===== V22__backfill_builtin_template_definitions.sql =====
+-- 将 17 套可编辑的官方工作流定义回填到模板表。
+-- 来源：frontend/meowflow-ui/src/mock/builtinTemplates.ts（生成，请勿手工拆散）。
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"IM 入口","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/cs/inbound","authToken":"Bearer ****","timeout":8000},"description":"接收 IM 平台 webhook 消息，作为流程入口"},{"id":"auth","type":"code.transform","name":"签名校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ts = input.headers[\"x-timestamp\"]; const sig = input.headers[\"x-signature\"]; const valid = Math.abs(Date.now() - +ts) < 60_000 && sig; return { valid, body: input.body };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"使用 IM 平台签名 + timestamp 防重放校验"},{"id":"extract","type":"code.transform","name":"抽取消息字段","x":320,"y":-140,"category":"transform","data":{"language":"javascript","source":"const b = input.body || {}; return { text: b.text || \"\", userId: b.userId, channel: b.channel || \"im\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"从 webhook payload 中抽取 text / userId / channel"},{"id":"blacklist","type":"code.transform","name":"黑名单校验","x":320,"y":140,"category":"transform","data":{"language":"javascript","source":"return { isBlacklisted: (input.blacklist || []).includes(input.userId) };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"检查用户是否在黑名单中"},{"id":"classify","type":"ai.llm","name":"意图 & 情绪分类","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请处理以下输入：\n{{input.text}}","categories":"FAQ,投诉,业务办理,表扬,闲聊","input":"{{extract.text}}","outputKey":"category,sentiment"},"description":"区分 FAQ / 投诉 / 业务办理 / 表扬 / 闲聊，并给出情绪标签"},{"id":"sensitive","type":"ai.llm","name":"敏感词过滤","x":640,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"识别文本中的 PII / 敏感词，给出掩码版本。","outputKey":"maskedText"},"description":"识别 PII / 违禁内容（手机号、身份证、政治敏感）"},{"id":"branch","type":"condition.switch","name":"分支路由","x":960,"y":0,"category":"control","data":{"field":"{{input.category}}","cases":[{"value":"紧急","next":"urgent"},{"value":"普通","next":"normal"},{"value":"建议","next":"suggestion"}],"defaultNext":"fallback"}},{"id":"faq","type":"knowledge.search","name":"FAQ 知识库","x":1280,"y":-140,"category":"ai","data":{"knowledgeBaseId":"kb_cs_faq","topK":3,"scoreThreshold":0.65,"outputKey":"faqContext"},"description":"从企业私有 FAQ 库检索 Top-3"},{"id":"llmReply","type":"ai.llm","name":"LLM 草拟回复","x":1280,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":512,"systemPrompt":"你是专业客服，用语礼貌简洁，分点回答，不要泄露客户隐私。","prompt":"客户问题：{{sensitive.maskedText}}\n参考知识：{{faq.faqContext}}"},"description":"基于上下文草拟礼貌准确的回复"},{"id":"human","type":"condition.if","name":"是否转人工","x":1280,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"assign","type":"http.request","name":"分配坐席","x":1600,"y":140,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/assign","headers":{"Content-Type":"application/json","X-Service":"meowflow"},"body":"{ \"userId\":\"{{extract.userId}}\", \"channel\":\"{{extract.channel}}\", \"priority\":\"high\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"调用工单系统分配客服坐席"},{"id":"retry","type":"code.transform","name":"重试退避","x":1600,"y":0,"category":"transform","data":{"language":"javascript","source":"const backoff = (input.attempt || 1) * 1000; return { sleepMs: backoff, nextAttempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避后重试上游调用"},{"id":"notify","type":"notify.feishu","name":"通知坐席","x":1920,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书通知值班坐席，含客户消息和情绪"},{"id":"feedback","type":"http.request","name":"满意度回执","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://cs.internal/api/feedback/dispatch","headers":{"Content-Type":"application/json"},"body":"{ \"userId\":\"{{extract.userId}}\", \"ticketId\":\"{{assign.ticketId}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"会话结束后向客户发送满意度调研"},{"id":"send","type":"notify.feishu","name":"发送回复","x":1920,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"通过 IM 机器人将回复发送给客户"},{"id":"rejectAuth","type":"notify.feishu","name":"签名/黑名单拒绝","x":960,"y":224,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"签名失败或黑名单用户：告警安全团队并拒收"},{"id":"aggregate","type":"transform.aggregator","name":"合并结果","x":2240,"y":0,"category":"transform","data":{"language":"javascript","source":"return { autoReply: input.send?.text, faqHits: input.faq?.length || 0, humanHandoff: !!input.assign, feedbackUrl: input.feedback?.url };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"合并自动回复 / 人工流转 / 满意度回执"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"auth","type":"default"},{"id":"e2","source":"auth","target":"extract","label":"通过","type":"condition"},{"id":"e3","source":"auth","target":"rejectAuth","label":"失败","type":"error"},{"id":"e4","source":"extract","target":"classify","type":"default"},{"id":"e5","source":"extract","target":"sensitive","type":"default"},{"id":"e6","source":"extract","target":"blacklist","type":"default"},{"id":"e7","source":"blacklist","target":"classify","label":"放行","type":"condition"},{"id":"e8","source":"blacklist","target":"rejectAuth","label":"黑名单","type":"error"},{"id":"e9","source":"sensitive","target":"classify","type":"default"},{"id":"e10","source":"classify","target":"branch","type":"default"},{"id":"e11","source":"branch","target":"faq","label":"FAQ","type":"condition"},{"id":"e12","source":"branch","target":"llmReply","label":"通用","type":"condition"},{"id":"e13","source":"branch","target":"human","label":"投诉","type":"condition"},{"id":"e14","source":"faq","target":"llmReply","type":"default"},{"id":"e15","source":"llmReply","target":"send","type":"default"},{"id":"e16","source":"human","target":"send","label":"自动","type":"condition"},{"id":"e17","source":"human","target":"assign","label":"转人工","type":"condition"},{"id":"e18","source":"assign","target":"retry","label":"失败重试","type":"loop"},{"id":"e19","source":"retry","target":"assign","type":"default"},{"id":"e20","source":"assign","target":"notify","type":"default"},{"id":"e21","source":"llmReply","target":"feedback","type":"default"},{"id":"e22","source":"send","target":"aggregate","type":"default"},{"id":"e23","source":"feedback","target":"aggregate","type":"default"},{"id":"e24","source":"notify","target":"aggregate","type":"default"},{"id":"e25","source":"aggregate","target":"end","type":"default"},{"id":"e26","source":"rejectAuth","target":"end","label":"签名失败","type":"error"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"IM 入口","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/cs/inbound","authToken":"Bearer ****","timeout":8000},"description":"接收 IM 平台 webhook 消息，作为流程入口"},{"id":"auth","type":"code.transform","name":"签名校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ts = input.headers[\"x-timestamp\"]; const sig = input.headers[\"x-signature\"]; const valid = Math.abs(Date.now() - +ts) < 60_000 && sig; return { valid, body: input.body };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"使用 IM 平台签名 + timestamp 防重放校验"},{"id":"extract","type":"code.transform","name":"抽取消息字段","x":320,"y":-140,"category":"transform","data":{"language":"javascript","source":"const b = input.body || {}; return { text: b.text || \"\", userId: b.userId, channel: b.channel || \"im\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"从 webhook payload 中抽取 text / userId / channel"},{"id":"blacklist","type":"code.transform","name":"黑名单校验","x":320,"y":140,"category":"transform","data":{"language":"javascript","source":"return { isBlacklisted: (input.blacklist || []).includes(input.userId) };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"检查用户是否在黑名单中"},{"id":"classify","type":"ai.llm","name":"意图 & 情绪分类","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请处理以下输入：\n{{input.text}}","categories":"FAQ,投诉,业务办理,表扬,闲聊","input":"{{extract.text}}","outputKey":"category,sentiment"},"description":"区分 FAQ / 投诉 / 业务办理 / 表扬 / 闲聊，并给出情绪标签"},{"id":"sensitive","type":"ai.llm","name":"敏感词过滤","x":640,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"识别文本中的 PII / 敏感词，给出掩码版本。","outputKey":"maskedText"},"description":"识别 PII / 违禁内容（手机号、身份证、政治敏感）"},{"id":"branch","type":"condition.switch","name":"分支路由","x":960,"y":0,"category":"control","data":{"field":"{{input.category}}","cases":[{"value":"紧急","next":"urgent"},{"value":"普通","next":"normal"},{"value":"建议","next":"suggestion"}],"defaultNext":"fallback"}},{"id":"faq","type":"knowledge.search","name":"FAQ 知识库","x":1280,"y":-140,"category":"ai","data":{"knowledgeBaseId":"kb_cs_faq","topK":3,"scoreThreshold":0.65,"outputKey":"faqContext"},"description":"从企业私有 FAQ 库检索 Top-3"},{"id":"llmReply","type":"ai.llm","name":"LLM 草拟回复","x":1280,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":512,"systemPrompt":"你是专业客服，用语礼貌简洁，分点回答，不要泄露客户隐私。","prompt":"客户问题：{{sensitive.maskedText}}\n参考知识：{{faq.faqContext}}"},"description":"基于上下文草拟礼貌准确的回复"},{"id":"human","type":"condition.if","name":"是否转人工","x":1280,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"assign","type":"http.request","name":"分配坐席","x":1600,"y":140,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/assign","headers":{"Content-Type":"application/json","X-Service":"meowflow"},"body":"{ \"userId\":\"{{extract.userId}}\", \"channel\":\"{{extract.channel}}\", \"priority\":\"high\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"调用工单系统分配客服坐席"},{"id":"retry","type":"code.transform","name":"重试退避","x":1600,"y":0,"category":"transform","data":{"language":"javascript","source":"const backoff = (input.attempt || 1) * 1000; return { sleepMs: backoff, nextAttempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避后重试上游调用"},{"id":"notify","type":"notify.feishu","name":"通知坐席","x":1920,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书通知值班坐席，含客户消息和情绪"},{"id":"feedback","type":"http.request","name":"满意度回执","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://cs.internal/api/feedback/dispatch","headers":{"Content-Type":"application/json"},"body":"{ \"userId\":\"{{extract.userId}}\", \"ticketId\":\"{{assign.ticketId}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"会话结束后向客户发送满意度调研"},{"id":"send","type":"notify.feishu","name":"发送回复","x":1920,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"通过 IM 机器人将回复发送给客户"},{"id":"rejectAuth","type":"notify.feishu","name":"签名/黑名单拒绝","x":960,"y":224,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"签名失败或黑名单用户：告警安全团队并拒收"},{"id":"aggregate","type":"transform.aggregator","name":"合并结果","x":2240,"y":0,"category":"transform","data":{"language":"javascript","source":"return { autoReply: input.send?.text, faqHits: input.faq?.length || 0, humanHandoff: !!input.assign, feedbackUrl: input.feedback?.url };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"合并自动回复 / 人工流转 / 满意度回执"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"auth","type":"default"},{"id":"e2","source":"auth","target":"extract","label":"通过","type":"condition"},{"id":"e3","source":"auth","target":"rejectAuth","label":"失败","type":"error"},{"id":"e4","source":"extract","target":"classify","type":"default"},{"id":"e5","source":"extract","target":"sensitive","type":"default"},{"id":"e6","source":"extract","target":"blacklist","type":"default"},{"id":"e7","source":"blacklist","target":"classify","label":"放行","type":"condition"},{"id":"e8","source":"blacklist","target":"rejectAuth","label":"黑名单","type":"error"},{"id":"e9","source":"sensitive","target":"classify","type":"default"},{"id":"e10","source":"classify","target":"branch","type":"default"},{"id":"e11","source":"branch","target":"faq","label":"FAQ","type":"condition"},{"id":"e12","source":"branch","target":"llmReply","label":"通用","type":"condition"},{"id":"e13","source":"branch","target":"human","label":"投诉","type":"condition"},{"id":"e14","source":"faq","target":"llmReply","type":"default"},{"id":"e15","source":"llmReply","target":"send","type":"default"},{"id":"e16","source":"human","target":"send","label":"自动","type":"condition"},{"id":"e17","source":"human","target":"assign","label":"转人工","type":"condition"},{"id":"e18","source":"assign","target":"retry","label":"失败重试","type":"loop"},{"id":"e19","source":"retry","target":"assign","type":"default"},{"id":"e20","source":"assign","target":"notify","type":"default"},{"id":"e21","source":"llmReply","target":"feedback","type":"default"},{"id":"e22","source":"send","target":"aggregate","type":"default"},{"id":"e23","source":"feedback","target":"aggregate","type":"default"},{"id":"e24","source":"notify","target":"aggregate","type":"default"},{"id":"e25","source":"aggregate","target":"end","type":"default"},{"id":"e26","source":"rejectAuth","target":"end","label":"签名失败","type":"error"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"IM 入口","type":"trigger.webhook","cx":120,"cy":30,"w":240,"h":60},{"id":"auth","name":"签名校验","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"extract","name":"抽取消息字段","type":"code.transform","cx":440,"cy":-110,"w":240,"h":60},{"id":"blacklist","name":"黑名单校验","type":"code.transform","cx":440,"cy":170,"w":240,"h":60},{"id":"classify","name":"意图 & 情绪分类","type":"ai.llm","cx":760,"cy":30,"w":240,"h":60},{"id":"sensitive","name":"敏感词过滤","type":"ai.llm","cx":760,"cy":170,"w":240,"h":60},{"id":"branch","name":"分支路由","type":"condition.switch","cx":1080,"cy":30,"w":240,"h":60},{"id":"faq","name":"FAQ 知识库","type":"knowledge.search","cx":1400,"cy":-110,"w":240,"h":60},{"id":"llmReply","name":"LLM 草拟回复","type":"ai.llm","cx":1400,"cy":30,"w":240,"h":60},{"id":"human","name":"是否转人工","type":"condition.if","cx":1400,"cy":170,"w":240,"h":60},{"id":"assign","name":"分配坐席","type":"http.request","cx":1720,"cy":170,"w":240,"h":60},{"id":"retry","name":"重试退避","type":"code.transform","cx":1720,"cy":30,"w":240,"h":60},{"id":"notify","name":"通知坐席","type":"notify.feishu","cx":2040,"cy":170,"w":240,"h":60},{"id":"feedback","name":"满意度回执","type":"http.request","cx":2040,"cy":30,"w":240,"h":60},{"id":"send","name":"发送回复","type":"notify.feishu","cx":2040,"cy":-110,"w":240,"h":60},{"id":"rejectAuth","name":"签名/黑名单拒绝","type":"notify.feishu","cx":1080,"cy":254,"w":240,"h":60},{"id":"aggregate","name":"合并结果","type":"transform.aggregator","cx":2360,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2680,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"auth"},{"id":"e2","source":"auth","target":"extract","label":"通过"},{"id":"e3","source":"auth","target":"rejectAuth","label":"失败"},{"id":"e4","source":"extract","target":"classify"},{"id":"e5","source":"extract","target":"sensitive"},{"id":"e6","source":"extract","target":"blacklist"},{"id":"e7","source":"blacklist","target":"classify","label":"放行"},{"id":"e8","source":"blacklist","target":"rejectAuth","label":"黑名单"},{"id":"e9","source":"sensitive","target":"classify"},{"id":"e10","source":"classify","target":"branch"},{"id":"e11","source":"branch","target":"faq","label":"FAQ"},{"id":"e12","source":"branch","target":"llmReply","label":"通用"},{"id":"e13","source":"branch","target":"human","label":"投诉"},{"id":"e14","source":"faq","target":"llmReply"},{"id":"e15","source":"llmReply","target":"send"},{"id":"e16","source":"human","target":"send","label":"自动"},{"id":"e17","source":"human","target":"assign","label":"转人工"},{"id":"e18","source":"assign","target":"retry","label":"失败重试"},{"id":"e19","source":"retry","target":"assign"},{"id":"e20","source":"assign","target":"notify"},{"id":"e21","source":"llmReply","target":"feedback"},{"id":"e22","source":"send","target":"aggregate"},{"id":"e23","source":"feedback","target":"aggregate"},{"id":"e24","source":"notify","target":"aggregate"},{"id":"e25","source":"aggregate","target":"end"},{"id":"e26","source":"rejectAuth","target":"end","label":"签名失败"}]}'::jsonb
+WHERE name = '智能客服自动回复';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"Webhook 入口","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/cs/ticket","authToken":"Bearer ****","timeout":8000},"description":"工单系统推送工单到 webhook"},{"id":"validate","type":"code.transform","name":"字段校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const b = input.body || {}; const ok = !!(b.title && b.content && b.userId); return { ok, payload: b };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验必填字段：title / content / userId"},{"id":"extract","type":"code.transform","name":"抽取关键字段","x":320,"y":-140,"category":"transform","data":{"language":"javascript","source":"const b = input.payload || {}; return { title: b.title, content: b.content, userId: b.userId, ticketId: b.id, priority: b.priority || \"normal\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"从工单 payload 中抽取标题/描述/客户ID"},{"id":"classify","type":"ai.llm","name":"工单分类","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请处理以下输入：\n{{input.text}}","categories":"账单,技术支持,投诉,其他","input":"{{extract.title}} {{extract.content}}","outputKey":"category,priority,confidence"},"description":"判断工单应归属哪个子组，并标注紧急度"},{"id":"confidence","type":"condition.if","name":"置信度足够?","x":640,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"route","type":"condition.switch","name":"按分类路由","x":960,"y":0,"category":"control","data":{"field":"{{input.category}}","cases":[{"value":"紧急","next":"urgent"},{"value":"普通","next":"normal"},{"value":"建议","next":"suggestion"}],"defaultNext":"fallback"}},{"id":"manualReview","type":"notify.email","name":"转人工分诊","x":960,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"cs-triage@meowflow.com","subject":"【待分诊】{{extract.title}}","body":"<pre>{{extract.content}}</pre>","cc":[]},"description":"置信度低时交给分诊团队"},{"id":"createA","type":"http.request","name":"分配：账单组","x":1280,"y":-140,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/forward","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"group\":\"billing\", \"priority\":\"{{extract.priority}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"把工单分配给账单组"},{"id":"createB","type":"http.request","name":"分配：技术支持","x":1280,"y":0,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/forward","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"group\":\"tech-support\", \"priority\":\"{{extract.priority}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"把工单分配给技术支持"},{"id":"createC","type":"http.request","name":"分配：投诉组","x":1280,"y":140,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/forward","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"group\":\"complaint\", \"priority\":\"high\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"把工单分配给投诉组"},{"id":"retry","type":"code.transform","name":"退避重试","x":1600,"y":0,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: 500 * Math.pow(2, input.attempt || 1), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避（最多 3 次）"},{"id":"notify","type":"notify.feishu","name":"发送飞书通知","x":1600,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通过飞书群机器人通知对应处理组"},{"id":"deadLetter","type":"http.request","name":"失败死信","x":1920,"y":140,"category":"action","data":{"method":"POST","url":"https://queue.internal/api/dead-letter","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"error\":\"{{retry.lastError}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"多次失败后写入死信队列，待人工介入"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"extract","label":"字段通过","type":"condition"},{"id":"e3","source":"validate","target":"deadLetter","label":"字段缺失","type":"error"},{"id":"e4","source":"extract","target":"classify","type":"default"},{"id":"e5","source":"classify","target":"confidence","type":"default"},{"id":"e6","source":"confidence","target":"route","label":"高","type":"condition"},{"id":"e7","source":"confidence","target":"manualReview","label":"低","type":"condition"},{"id":"e8","source":"route","target":"createA","label":"账单","type":"condition"},{"id":"e9","source":"route","target":"createB","label":"技术","type":"condition"},{"id":"e10","source":"route","target":"createC","label":"投诉","type":"condition"},{"id":"e11","source":"createA","target":"retry","label":"失败","type":"loop"},{"id":"e12","source":"createB","target":"retry","label":"失败","type":"loop"},{"id":"e13","source":"createC","target":"retry","label":"失败","type":"loop"},{"id":"e14","source":"retry","target":"notify","type":"default"},{"id":"e15","source":"retry","target":"deadLetter","label":"重试耗尽","type":"error"},{"id":"e16","source":"createA","target":"notify","type":"default"},{"id":"e17","source":"createB","target":"notify","type":"default"},{"id":"e18","source":"createC","target":"notify","type":"default"},{"id":"e19","source":"manualReview","target":"end","type":"default"},{"id":"e20","source":"notify","target":"end","type":"default"},{"id":"e21","source":"deadLetter","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"Webhook 入口","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/cs/ticket","authToken":"Bearer ****","timeout":8000},"description":"工单系统推送工单到 webhook"},{"id":"validate","type":"code.transform","name":"字段校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const b = input.body || {}; const ok = !!(b.title && b.content && b.userId); return { ok, payload: b };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验必填字段：title / content / userId"},{"id":"extract","type":"code.transform","name":"抽取关键字段","x":320,"y":-140,"category":"transform","data":{"language":"javascript","source":"const b = input.payload || {}; return { title: b.title, content: b.content, userId: b.userId, ticketId: b.id, priority: b.priority || \"normal\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"从工单 payload 中抽取标题/描述/客户ID"},{"id":"classify","type":"ai.llm","name":"工单分类","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请处理以下输入：\n{{input.text}}","categories":"账单,技术支持,投诉,其他","input":"{{extract.title}} {{extract.content}}","outputKey":"category,priority,confidence"},"description":"判断工单应归属哪个子组，并标注紧急度"},{"id":"confidence","type":"condition.if","name":"置信度足够?","x":640,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"route","type":"condition.switch","name":"按分类路由","x":960,"y":0,"category":"control","data":{"field":"{{input.category}}","cases":[{"value":"紧急","next":"urgent"},{"value":"普通","next":"normal"},{"value":"建议","next":"suggestion"}],"defaultNext":"fallback"}},{"id":"manualReview","type":"notify.email","name":"转人工分诊","x":960,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"cs-triage@meowflow.com","subject":"【待分诊】{{extract.title}}","body":"<pre>{{extract.content}}</pre>","cc":[]},"description":"置信度低时交给分诊团队"},{"id":"createA","type":"http.request","name":"分配：账单组","x":1280,"y":-140,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/forward","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"group\":\"billing\", \"priority\":\"{{extract.priority}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"把工单分配给账单组"},{"id":"createB","type":"http.request","name":"分配：技术支持","x":1280,"y":0,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/forward","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"group\":\"tech-support\", \"priority\":\"{{extract.priority}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"把工单分配给技术支持"},{"id":"createC","type":"http.request","name":"分配：投诉组","x":1280,"y":140,"category":"action","data":{"method":"POST","url":"https://ticket.internal/api/ticket/forward","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"group\":\"complaint\", \"priority\":\"high\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":3},"description":"把工单分配给投诉组"},{"id":"retry","type":"code.transform","name":"退避重试","x":1600,"y":0,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: 500 * Math.pow(2, input.attempt || 1), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避（最多 3 次）"},{"id":"notify","type":"notify.feishu","name":"发送飞书通知","x":1600,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通过飞书群机器人通知对应处理组"},{"id":"deadLetter","type":"http.request","name":"失败死信","x":1920,"y":140,"category":"action","data":{"method":"POST","url":"https://queue.internal/api/dead-letter","headers":{"Content-Type":"application/json"},"body":"{ \"ticketId\":\"{{extract.ticketId}}\", \"error\":\"{{retry.lastError}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"多次失败后写入死信队列，待人工介入"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"extract","label":"字段通过","type":"condition"},{"id":"e3","source":"validate","target":"deadLetter","label":"字段缺失","type":"error"},{"id":"e4","source":"extract","target":"classify","type":"default"},{"id":"e5","source":"classify","target":"confidence","type":"default"},{"id":"e6","source":"confidence","target":"route","label":"高","type":"condition"},{"id":"e7","source":"confidence","target":"manualReview","label":"低","type":"condition"},{"id":"e8","source":"route","target":"createA","label":"账单","type":"condition"},{"id":"e9","source":"route","target":"createB","label":"技术","type":"condition"},{"id":"e10","source":"route","target":"createC","label":"投诉","type":"condition"},{"id":"e11","source":"createA","target":"retry","label":"失败","type":"loop"},{"id":"e12","source":"createB","target":"retry","label":"失败","type":"loop"},{"id":"e13","source":"createC","target":"retry","label":"失败","type":"loop"},{"id":"e14","source":"retry","target":"notify","type":"default"},{"id":"e15","source":"retry","target":"deadLetter","label":"重试耗尽","type":"error"},{"id":"e16","source":"createA","target":"notify","type":"default"},{"id":"e17","source":"createB","target":"notify","type":"default"},{"id":"e18","source":"createC","target":"notify","type":"default"},{"id":"e19","source":"manualReview","target":"end","type":"default"},{"id":"e20","source":"notify","target":"end","type":"default"},{"id":"e21","source":"deadLetter","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"Webhook 入口","type":"trigger.webhook","cx":120,"cy":30,"w":240,"h":60},{"id":"validate","name":"字段校验","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"extract","name":"抽取关键字段","type":"code.transform","cx":440,"cy":-110,"w":240,"h":60},{"id":"classify","name":"工单分类","type":"ai.llm","cx":760,"cy":30,"w":240,"h":60},{"id":"confidence","name":"置信度足够?","type":"condition.if","cx":760,"cy":170,"w":240,"h":60},{"id":"route","name":"按分类路由","type":"condition.switch","cx":1080,"cy":30,"w":240,"h":60},{"id":"manualReview","name":"转人工分诊","type":"notify.email","cx":1080,"cy":170,"w":240,"h":60},{"id":"createA","name":"分配：账单组","type":"http.request","cx":1400,"cy":-110,"w":240,"h":60},{"id":"createB","name":"分配：技术支持","type":"http.request","cx":1400,"cy":30,"w":240,"h":60},{"id":"createC","name":"分配：投诉组","type":"http.request","cx":1400,"cy":170,"w":240,"h":60},{"id":"retry","name":"退避重试","type":"code.transform","cx":1720,"cy":30,"w":240,"h":60},{"id":"notify","name":"发送飞书通知","type":"notify.feishu","cx":1720,"cy":-110,"w":240,"h":60},{"id":"deadLetter","name":"失败死信","type":"http.request","cx":2040,"cy":170,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2360,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"validate"},{"id":"e2","source":"validate","target":"extract","label":"字段通过"},{"id":"e3","source":"validate","target":"deadLetter","label":"字段缺失"},{"id":"e4","source":"extract","target":"classify"},{"id":"e5","source":"classify","target":"confidence"},{"id":"e6","source":"confidence","target":"route","label":"高"},{"id":"e7","source":"confidence","target":"manualReview","label":"低"},{"id":"e8","source":"route","target":"createA","label":"账单"},{"id":"e9","source":"route","target":"createB","label":"技术"},{"id":"e10","source":"route","target":"createC","label":"投诉"},{"id":"e11","source":"createA","target":"retry","label":"失败"},{"id":"e12","source":"createB","target":"retry","label":"失败"},{"id":"e13","source":"createC","target":"retry","label":"失败"},{"id":"e14","source":"retry","target":"notify"},{"id":"e15","source":"retry","target":"deadLetter","label":"重试耗尽"},{"id":"e16","source":"createA","target":"notify"},{"id":"e17","source":"createB","target":"notify"},{"id":"e18","source":"createC","target":"notify"},{"id":"e19","source":"manualReview","target":"end"},{"id":"e20","source":"notify","target":"end"},{"id":"e21","source":"deadLetter","target":"end"}]}'::jsonb
+WHERE name = '工单分类与路由';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 09:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 9 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每日早 9 点聚合分析昨日用户反馈"},{"id":"fetch","type":"http.request","name":"拉取反馈","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://ticket.internal/api/feedbacks/recent?hours=24","headers":{"X-Service":"meowflow"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":10000,"retries":3},"description":"从工单系统拉取近 24 小时的用户反馈"},{"id":"parse","type":"code.transform","name":"解析与去重","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); return (input.items || []).filter(f => !seen.has(f.id) && seen.add(f.id)).map(f => ({ id: f.id, text: f.text, channel: f.channel, user: f.userId }));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"解析反馈为统一结构并按 feedbackId 去重"},{"id":"sentiment","type":"ai.llm","name":"情感 & 主题分析","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":2048,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"逐条分析反馈，给出 sentiment 与 theme 与 urgency，输出 JSON 数组。"},"description":"对反馈进行情感打标 (positive/neutral/negative) 与主题归类"},{"id":"branch","type":"condition.if","name":"负面?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"alert","type":"notify.feishu","name":"推送告警","x":1600,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"负面反馈及时推送经理群处理"},{"id":"summary","type":"ai.llm","name":"生成日报摘要","x":1600,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于反馈数据输出段落式日报摘要，包含亮点、风险、建议。","maxWords":300,"language":"zh-CN"},"description":"汇总当日反馈核心结论"},{"id":"render","type":"code.transform","name":"渲染 HTML 报表","x":1920,"y":140,"category":"transform","data":{"language":"javascript","source":"return { html: `<h3>今日反馈日报</h3><pre>${input.summary.text}</pre>`, date: new Date().toISOString().slice(0, 10) };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"把摘要渲染成邮件友好的 HTML"},{"id":"sendEmail","type":"notify.email","name":"发送日报邮件","x":1920,"y":0,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"feedback@meowflow.com","subject":"【每日反馈日报】{{render.date}}","body":"<h3>今日反馈概要</h3><pre>{{render.html}}</pre>","cc":[]},"description":"邮件发送日报摘要"},{"id":"archive","type":"http.request","name":"归档知识库","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://kb.internal/api/docs","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"反馈日报 {{render.date}}\", \"content\":\"{{render.html}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把日报归档到知识库供后续查询"},{"id":"deadLetter","type":"notify.feishu","name":"数据缺失告警","x":1280,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"反馈源数据为空时通知运营"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"fetch","type":"default"},{"id":"e2","source":"fetch","target":"parse","type":"default"},{"id":"e3","source":"parse","target":"sentiment","label":"有数据","type":"condition"},{"id":"e4","source":"parse","target":"deadLetter","label":"空数据","type":"error"},{"id":"e5","source":"sentiment","target":"branch","type":"default"},{"id":"e6","source":"branch","target":"alert","label":"是","type":"condition"},{"id":"e7","source":"branch","target":"summary","label":"否","type":"condition"},{"id":"e8","source":"summary","target":"render","type":"default"},{"id":"e9","source":"render","target":"sendEmail","type":"default"},{"id":"e10","source":"sendEmail","target":"archive","type":"default"},{"id":"e11","source":"archive","target":"end","type":"default"},{"id":"e12","source":"alert","target":"end","type":"default"},{"id":"e13","source":"deadLetter","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 09:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 9 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每日早 9 点聚合分析昨日用户反馈"},{"id":"fetch","type":"http.request","name":"拉取反馈","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://ticket.internal/api/feedbacks/recent?hours=24","headers":{"X-Service":"meowflow"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":10000,"retries":3},"description":"从工单系统拉取近 24 小时的用户反馈"},{"id":"parse","type":"code.transform","name":"解析与去重","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); return (input.items || []).filter(f => !seen.has(f.id) && seen.add(f.id)).map(f => ({ id: f.id, text: f.text, channel: f.channel, user: f.userId }));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"解析反馈为统一结构并按 feedbackId 去重"},{"id":"sentiment","type":"ai.llm","name":"情感 & 主题分析","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":2048,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"逐条分析反馈，给出 sentiment 与 theme 与 urgency，输出 JSON 数组。"},"description":"对反馈进行情感打标 (positive/neutral/negative) 与主题归类"},{"id":"branch","type":"condition.if","name":"负面?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"alert","type":"notify.feishu","name":"推送告警","x":1600,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"负面反馈及时推送经理群处理"},{"id":"summary","type":"ai.llm","name":"生成日报摘要","x":1600,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于反馈数据输出段落式日报摘要，包含亮点、风险、建议。","maxWords":300,"language":"zh-CN"},"description":"汇总当日反馈核心结论"},{"id":"render","type":"code.transform","name":"渲染 HTML 报表","x":1920,"y":140,"category":"transform","data":{"language":"javascript","source":"return { html: `<h3>今日反馈日报</h3><pre>${input.summary.text}</pre>`, date: new Date().toISOString().slice(0, 10) };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"把摘要渲染成邮件友好的 HTML"},{"id":"sendEmail","type":"notify.email","name":"发送日报邮件","x":1920,"y":0,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"feedback@meowflow.com","subject":"【每日反馈日报】{{render.date}}","body":"<h3>今日反馈概要</h3><pre>{{render.html}}</pre>","cc":[]},"description":"邮件发送日报摘要"},{"id":"archive","type":"http.request","name":"归档知识库","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://kb.internal/api/docs","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"反馈日报 {{render.date}}\", \"content\":\"{{render.html}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把日报归档到知识库供后续查询"},{"id":"deadLetter","type":"notify.feishu","name":"数据缺失告警","x":1280,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"反馈源数据为空时通知运营"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"fetch","type":"default"},{"id":"e2","source":"fetch","target":"parse","type":"default"},{"id":"e3","source":"parse","target":"sentiment","label":"有数据","type":"condition"},{"id":"e4","source":"parse","target":"deadLetter","label":"空数据","type":"error"},{"id":"e5","source":"sentiment","target":"branch","type":"default"},{"id":"e6","source":"branch","target":"alert","label":"是","type":"condition"},{"id":"e7","source":"branch","target":"summary","label":"否","type":"condition"},{"id":"e8","source":"summary","target":"render","type":"default"},{"id":"e9","source":"render","target":"sendEmail","type":"default"},{"id":"e10","source":"sendEmail","target":"archive","type":"default"},{"id":"e11","source":"archive","target":"end","type":"default"},{"id":"e12","source":"alert","target":"end","type":"default"},{"id":"e13","source":"deadLetter","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"每日 09:00","type":"trigger.cron","cx":120,"cy":30,"w":240,"h":60},{"id":"fetch","name":"拉取反馈","type":"http.request","cx":440,"cy":30,"w":240,"h":60},{"id":"parse","name":"解析与去重","type":"code.transform","cx":760,"cy":30,"w":240,"h":60},{"id":"sentiment","name":"情感 & 主题分析","type":"ai.llm","cx":1080,"cy":30,"w":240,"h":60},{"id":"branch","name":"负面?","type":"condition.if","cx":1400,"cy":30,"w":240,"h":60},{"id":"alert","name":"推送告警","type":"notify.feishu","cx":1720,"cy":-110,"w":240,"h":60},{"id":"summary","name":"生成日报摘要","type":"ai.llm","cx":1720,"cy":170,"w":240,"h":60},{"id":"render","name":"渲染 HTML 报表","type":"code.transform","cx":2040,"cy":170,"w":240,"h":60},{"id":"sendEmail","name":"发送日报邮件","type":"notify.email","cx":2040,"cy":30,"w":240,"h":60},{"id":"archive","name":"归档知识库","type":"http.request","cx":2360,"cy":30,"w":240,"h":60},{"id":"deadLetter","name":"数据缺失告警","type":"notify.feishu","cx":1400,"cy":170,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2680,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"fetch"},{"id":"e2","source":"fetch","target":"parse"},{"id":"e3","source":"parse","target":"sentiment","label":"有数据"},{"id":"e4","source":"parse","target":"deadLetter","label":"空数据"},{"id":"e5","source":"sentiment","target":"branch"},{"id":"e6","source":"branch","target":"alert","label":"是"},{"id":"e7","source":"branch","target":"summary","label":"否"},{"id":"e8","source":"summary","target":"render"},{"id":"e9","source":"render","target":"sendEmail"},{"id":"e10","source":"sendEmail","target":"archive"},{"id":"e11","source":"archive","target":"end"},{"id":"e12","source":"alert","target":"end"},{"id":"e13","source":"deadLetter","target":"end"}]}'::jsonb
+WHERE name = '用户反馈分析';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"投递接收","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/hr/resume","authToken":"Bearer ****","timeout":10000},"description":"招聘网站投递触发"},{"id":"parse","type":"code.transform","name":"解析简历文本","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const r = input.body || {}; return { name: r.name, education: r.education, experience: r.experience, skills: r.skills || [], years: r.years || 0, raw: r.raw };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"提取简历核心字段（姓名/学历/经验/技能）"},{"id":"jd","type":"knowledge.search","name":"匹配岗位 JD","x":640,"y":-140,"category":"ai","data":{"knowledgeBaseId":"kb_hr_jd","topK":3,"scoreThreshold":0.7,"outputKey":"topJD"},"description":"从招聘 JD 知识库中检索 Top-3 匹配 JD"},{"id":"score","type":"ai.llm","name":"匹配评分","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.15,"maxTokens":512,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请根据 JD 与简历给出 0-100 评分，并解释原因，按维度（技能/经验/学历）拆解。"},"description":"基于 Top JD + 简历打分（0-100）并解释"},{"id":"threshold","type":"condition.if","name":"≥ 80 分?","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"checkMid","type":"condition.if","name":"≥ 60 分?","x":960,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"toHr","type":"notify.email","name":"推送给 HR","x":1280,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"hr@meowflow.com","subject":"【高分简历】{{parse.name}} - {{score.total}} 分","body":"<h3>候选人：{{parse.name}}</h3><pre>评分明细：{{score.breakdown}}</pre>","cc":[]},"description":"把高分简历推送给 HR（含评分明细）"},{"id":"talentPool","type":"http.request","name":"入人才库","x":1280,"y":0,"category":"action","data":{"method":"POST","url":"https://ats.internal/api/talent-pool","headers":{"Content-Type":"application/json"},"body":"{ \"name\":\"{{parse.name}}\", \"score\":{{score.total}}, \"skills\":{{parse.skills}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"中等分简历入人才库，未来岗位自动推荐"},{"id":"reject","type":"notify.email","name":"礼貌婉拒邮件","x":1280,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"{{parse.email}}","subject":"感谢您的投递","body":"感谢您投递我们公司，未来有合适岗位会再联系您。","cc":[]},"description":"婉拒邮件（个性化签名）"},{"id":"log","type":"http.request","name":"写入 ATS 系统","x":1600,"y":-140,"category":"action","data":{"method":"POST","url":"https://ats.internal/api/candidate","headers":{"Content-Type":"application/json"},"body":"{ \"name\": \"{{parse.name}}\", \"score\": {{score.total}}, \"stage\":\"hr-review\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把通过者记录写入 ATS 候选人库"},{"id":"interview","type":"http.request","name":"预约初试","x":1600,"y":0,"category":"action","data":{"method":"POST","url":"https://ats.internal/api/interview/schedule","headers":{"Content-Type":"application/json"},"body":"{ \"candidate\":\"{{parse.name}}\", \"round\":\"phone-screen\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"自动发送面试邀请日历"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"parse","type":"default"},{"id":"e2","source":"parse","target":"score","type":"default"},{"id":"e3","source":"parse","target":"jd","type":"default"},{"id":"e4","source":"jd","target":"score","type":"default"},{"id":"e5","source":"score","target":"threshold","type":"default"},{"id":"e6","source":"threshold","target":"toHr","label":"高分","type":"condition"},{"id":"e7","source":"threshold","target":"checkMid","label":"一般","type":"condition"},{"id":"e8","source":"checkMid","target":"talentPool","label":"中等","type":"condition"},{"id":"e9","source":"checkMid","target":"reject","label":"低分","type":"condition"},{"id":"e10","source":"toHr","target":"log","type":"default"},{"id":"e11","source":"toHr","target":"interview","type":"default"},{"id":"e12","source":"talentPool","target":"end","type":"default"},{"id":"e13","source":"reject","target":"end","type":"default"},{"id":"e14","source":"log","target":"end","type":"default"},{"id":"e15","source":"interview","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"投递接收","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/hr/resume","authToken":"Bearer ****","timeout":10000},"description":"招聘网站投递触发"},{"id":"parse","type":"code.transform","name":"解析简历文本","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const r = input.body || {}; return { name: r.name, education: r.education, experience: r.experience, skills: r.skills || [], years: r.years || 0, raw: r.raw };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"提取简历核心字段（姓名/学历/经验/技能）"},{"id":"jd","type":"knowledge.search","name":"匹配岗位 JD","x":640,"y":-140,"category":"ai","data":{"knowledgeBaseId":"kb_hr_jd","topK":3,"scoreThreshold":0.7,"outputKey":"topJD"},"description":"从招聘 JD 知识库中检索 Top-3 匹配 JD"},{"id":"score","type":"ai.llm","name":"匹配评分","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.15,"maxTokens":512,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请根据 JD 与简历给出 0-100 评分，并解释原因，按维度（技能/经验/学历）拆解。"},"description":"基于 Top JD + 简历打分（0-100）并解释"},{"id":"threshold","type":"condition.if","name":"≥ 80 分?","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"checkMid","type":"condition.if","name":"≥ 60 分?","x":960,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"toHr","type":"notify.email","name":"推送给 HR","x":1280,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"hr@meowflow.com","subject":"【高分简历】{{parse.name}} - {{score.total}} 分","body":"<h3>候选人：{{parse.name}}</h3><pre>评分明细：{{score.breakdown}}</pre>","cc":[]},"description":"把高分简历推送给 HR（含评分明细）"},{"id":"talentPool","type":"http.request","name":"入人才库","x":1280,"y":0,"category":"action","data":{"method":"POST","url":"https://ats.internal/api/talent-pool","headers":{"Content-Type":"application/json"},"body":"{ \"name\":\"{{parse.name}}\", \"score\":{{score.total}}, \"skills\":{{parse.skills}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"中等分简历入人才库，未来岗位自动推荐"},{"id":"reject","type":"notify.email","name":"礼貌婉拒邮件","x":1280,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"{{parse.email}}","subject":"感谢您的投递","body":"感谢您投递我们公司，未来有合适岗位会再联系您。","cc":[]},"description":"婉拒邮件（个性化签名）"},{"id":"log","type":"http.request","name":"写入 ATS 系统","x":1600,"y":-140,"category":"action","data":{"method":"POST","url":"https://ats.internal/api/candidate","headers":{"Content-Type":"application/json"},"body":"{ \"name\": \"{{parse.name}}\", \"score\": {{score.total}}, \"stage\":\"hr-review\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把通过者记录写入 ATS 候选人库"},{"id":"interview","type":"http.request","name":"预约初试","x":1600,"y":0,"category":"action","data":{"method":"POST","url":"https://ats.internal/api/interview/schedule","headers":{"Content-Type":"application/json"},"body":"{ \"candidate\":\"{{parse.name}}\", \"round\":\"phone-screen\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"自动发送面试邀请日历"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"parse","type":"default"},{"id":"e2","source":"parse","target":"score","type":"default"},{"id":"e3","source":"parse","target":"jd","type":"default"},{"id":"e4","source":"jd","target":"score","type":"default"},{"id":"e5","source":"score","target":"threshold","type":"default"},{"id":"e6","source":"threshold","target":"toHr","label":"高分","type":"condition"},{"id":"e7","source":"threshold","target":"checkMid","label":"一般","type":"condition"},{"id":"e8","source":"checkMid","target":"talentPool","label":"中等","type":"condition"},{"id":"e9","source":"checkMid","target":"reject","label":"低分","type":"condition"},{"id":"e10","source":"toHr","target":"log","type":"default"},{"id":"e11","source":"toHr","target":"interview","type":"default"},{"id":"e12","source":"talentPool","target":"end","type":"default"},{"id":"e13","source":"reject","target":"end","type":"default"},{"id":"e14","source":"log","target":"end","type":"default"},{"id":"e15","source":"interview","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"投递接收","type":"trigger.webhook","cx":120,"cy":30,"w":240,"h":60},{"id":"parse","name":"解析简历文本","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"jd","name":"匹配岗位 JD","type":"knowledge.search","cx":760,"cy":-110,"w":240,"h":60},{"id":"score","name":"匹配评分","type":"ai.llm","cx":760,"cy":30,"w":240,"h":60},{"id":"threshold","name":"≥ 80 分?","type":"condition.if","cx":1080,"cy":30,"w":240,"h":60},{"id":"checkMid","name":"≥ 60 分?","type":"condition.if","cx":1080,"cy":170,"w":240,"h":60},{"id":"toHr","name":"推送给 HR","type":"notify.email","cx":1400,"cy":-110,"w":240,"h":60},{"id":"talentPool","name":"入人才库","type":"http.request","cx":1400,"cy":30,"w":240,"h":60},{"id":"reject","name":"礼貌婉拒邮件","type":"notify.email","cx":1400,"cy":170,"w":240,"h":60},{"id":"log","name":"写入 ATS 系统","type":"http.request","cx":1720,"cy":-110,"w":240,"h":60},{"id":"interview","name":"预约初试","type":"http.request","cx":1720,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2040,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"parse"},{"id":"e2","source":"parse","target":"score"},{"id":"e3","source":"parse","target":"jd"},{"id":"e4","source":"jd","target":"score"},{"id":"e5","source":"score","target":"threshold"},{"id":"e6","source":"threshold","target":"toHr","label":"高分"},{"id":"e7","source":"threshold","target":"checkMid","label":"一般"},{"id":"e8","source":"checkMid","target":"talentPool","label":"中等"},{"id":"e9","source":"checkMid","target":"reject","label":"低分"},{"id":"e10","source":"toHr","target":"log"},{"id":"e11","source":"toHr","target":"interview"},{"id":"e12","source":"talentPool","target":"end"},{"id":"e13","source":"reject","target":"end"},{"id":"e14","source":"log","target":"end"},{"id":"e15","source":"interview","target":"end"}]}'::jsonb
+WHERE name = '简历自动筛选';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"员工提交请假","x":0,"y":0,"category":"trigger","data":{"formId":"form_leave_request","fields":[{"key":"applicant","label":"申请人","type":"string","required":true},{"key":"days","label":"天数","type":"number","required":true},{"key":"reason","label":"事由","type":"text","required":true},{"key":"leaveType","label":"类型","type":"select","options":["年假","病假","事假","调休"],"required":true}]},"description":"员工填写请假表单提交"},{"id":"validate","type":"code.transform","name":"校验时间冲突","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const overlap = (input.days > 2 && (input.teamOnLeave || 0) >= 3); const inBlackout = (input.blackoutDates || []).some(d => input.dates?.includes(d)); return { overlap, inBlackout, days: input.days };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"检查团队成员同期请假冲突与黑名单时段"},{"id":"branch","type":"condition.if","name":"时长路由","x":640,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"approve","type":"http.request","name":"主管一键审批","x":960,"y":-140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/leave/quick-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"days\":{{validate.days}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":2},"description":"短假主管直接审批"},{"id":"mgrApprove","type":"http.request","name":"多级审批","x":960,"y":140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/leave/multi-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"days\":{{validate.days}}, \"leaveType\":\"{{trigger.leaveType}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":8000,"retries":2},"description":"长假进入多级审批流（主管→HRBP→总监）"},{"id":"checkLeave","type":"condition.if","name":"余额够?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"record","type":"http.request","name":"写入 OA 系统","x":1280,"y":140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/leave/record","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"days\":{{validate.days}}, \"reason\":\"{{trigger.reason}}\", \"type\":\"{{trigger.leaveType}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"记录到 OA 并扣减假期余额"},{"id":"insufficient","type":"notify.feishu","name":"余额不足告警","x":1600,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"假期余额不足通知员工并退回"},{"id":"reply","type":"notify.feishu","name":"回复员工","x":1600,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通知员工审批结果（含审批人）"},{"id":"syncCalendar","type":"http.request","name":"同步日历","x":1600,"y":0,"category":"action","data":{"method":"POST","url":"https://calendar.internal/api/event","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"{{trigger.applicant}} 请假\", \"days\":{{validate.days}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"同步到企业日历"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"branch","type":"default"},{"id":"e3","source":"branch","target":"approve","label":"短假","type":"condition"},{"id":"e4","source":"branch","target":"mgrApprove","label":"长假/黑名单","type":"condition"},{"id":"e5","source":"approve","target":"record","type":"default"},{"id":"e6","source":"mgrApprove","target":"record","type":"default"},{"id":"e7","source":"record","target":"checkLeave","type":"default"},{"id":"e8","source":"checkLeave","target":"reply","label":"够","type":"condition"},{"id":"e9","source":"checkLeave","target":"insufficient","label":"不足","type":"condition"},{"id":"e10","source":"reply","target":"syncCalendar","type":"default"},{"id":"e11","source":"syncCalendar","target":"end","type":"default"},{"id":"e12","source":"insufficient","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"员工提交请假","x":0,"y":0,"category":"trigger","data":{"formId":"form_leave_request","fields":[{"key":"applicant","label":"申请人","type":"string","required":true},{"key":"days","label":"天数","type":"number","required":true},{"key":"reason","label":"事由","type":"text","required":true},{"key":"leaveType","label":"类型","type":"select","options":["年假","病假","事假","调休"],"required":true}]},"description":"员工填写请假表单提交"},{"id":"validate","type":"code.transform","name":"校验时间冲突","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const overlap = (input.days > 2 && (input.teamOnLeave || 0) >= 3); const inBlackout = (input.blackoutDates || []).some(d => input.dates?.includes(d)); return { overlap, inBlackout, days: input.days };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"检查团队成员同期请假冲突与黑名单时段"},{"id":"branch","type":"condition.if","name":"时长路由","x":640,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"approve","type":"http.request","name":"主管一键审批","x":960,"y":-140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/leave/quick-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"days\":{{validate.days}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":2},"description":"短假主管直接审批"},{"id":"mgrApprove","type":"http.request","name":"多级审批","x":960,"y":140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/leave/multi-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"days\":{{validate.days}}, \"leaveType\":\"{{trigger.leaveType}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":8000,"retries":2},"description":"长假进入多级审批流（主管→HRBP→总监）"},{"id":"checkLeave","type":"condition.if","name":"余额够?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"record","type":"http.request","name":"写入 OA 系统","x":1280,"y":140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/leave/record","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"days\":{{validate.days}}, \"reason\":\"{{trigger.reason}}\", \"type\":\"{{trigger.leaveType}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"记录到 OA 并扣减假期余额"},{"id":"insufficient","type":"notify.feishu","name":"余额不足告警","x":1600,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"假期余额不足通知员工并退回"},{"id":"reply","type":"notify.feishu","name":"回复员工","x":1600,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通知员工审批结果（含审批人）"},{"id":"syncCalendar","type":"http.request","name":"同步日历","x":1600,"y":0,"category":"action","data":{"method":"POST","url":"https://calendar.internal/api/event","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"{{trigger.applicant}} 请假\", \"days\":{{validate.days}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"同步到企业日历"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"branch","type":"default"},{"id":"e3","source":"branch","target":"approve","label":"短假","type":"condition"},{"id":"e4","source":"branch","target":"mgrApprove","label":"长假/黑名单","type":"condition"},{"id":"e5","source":"approve","target":"record","type":"default"},{"id":"e6","source":"mgrApprove","target":"record","type":"default"},{"id":"e7","source":"record","target":"checkLeave","type":"default"},{"id":"e8","source":"checkLeave","target":"reply","label":"够","type":"condition"},{"id":"e9","source":"checkLeave","target":"insufficient","label":"不足","type":"condition"},{"id":"e10","source":"reply","target":"syncCalendar","type":"default"},{"id":"e11","source":"syncCalendar","target":"end","type":"default"},{"id":"e12","source":"insufficient","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"员工提交请假","type":"trigger.form","cx":120,"cy":30,"w":240,"h":60},{"id":"validate","name":"校验时间冲突","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"branch","name":"时长路由","type":"condition.if","cx":760,"cy":30,"w":240,"h":60},{"id":"approve","name":"主管一键审批","type":"http.request","cx":1080,"cy":-110,"w":240,"h":60},{"id":"mgrApprove","name":"多级审批","type":"http.request","cx":1080,"cy":170,"w":240,"h":60},{"id":"checkLeave","name":"余额够?","type":"condition.if","cx":1400,"cy":30,"w":240,"h":60},{"id":"record","name":"写入 OA 系统","type":"http.request","cx":1400,"cy":170,"w":240,"h":60},{"id":"insufficient","name":"余额不足告警","type":"notify.feishu","cx":1720,"cy":170,"w":240,"h":60},{"id":"reply","name":"回复员工","type":"notify.feishu","cx":1720,"cy":-110,"w":240,"h":60},{"id":"syncCalendar","name":"同步日历","type":"http.request","cx":1720,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2040,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"validate"},{"id":"e2","source":"validate","target":"branch"},{"id":"e3","source":"branch","target":"approve","label":"短假"},{"id":"e4","source":"branch","target":"mgrApprove","label":"长假/黑名单"},{"id":"e5","source":"approve","target":"record"},{"id":"e6","source":"mgrApprove","target":"record"},{"id":"e7","source":"record","target":"checkLeave"},{"id":"e8","source":"checkLeave","target":"reply","label":"够"},{"id":"e9","source":"checkLeave","target":"insufficient","label":"不足"},{"id":"e10","source":"reply","target":"syncCalendar"},{"id":"e11","source":"syncCalendar","target":"end"},{"id":"e12","source":"insufficient","target":"end"}]}'::jsonb
+WHERE name = '请假审批';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"HR 提交入职","x":0,"y":0,"category":"trigger","data":{"formId":"form_onboarding","fields":[{"key":"name","label":"姓名","type":"string","required":true},{"key":"email","label":"邮箱","type":"string","required":true},{"key":"position","label":"岗位","type":"string","required":true},{"key":"department","label":"部门","type":"string","required":true},{"key":"startDate","label":"入职日期","type":"date","required":true}]},"description":"HR 提交入职信息表单"},{"id":"validate","type":"code.transform","name":"查重校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const dup = (input.existingUsers || []).some(u => u.email === input.email); return { dup, name: input.name, email: input.email };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验邮箱是否已存在，避免重复入职"},{"id":"dup","type":"condition.if","name":"邮箱未注册?","x":320,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"dupAlert","type":"notify.email","name":"邮箱重复告警","x":320,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"hr@meowflow.com","subject":"【入职冲突】{{trigger.email}} 已存在","body":"邮箱 {{trigger.email}} 已在系统中，请核实。","cc":[]},"description":"通知 HR 邮箱已注册"},{"id":"createAccount","type":"http.request","name":"创建账号","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://idp.internal/api/account/create","headers":{"Content-Type":"application/json"},"body":"{ \"name\":\"{{trigger.name}}\", \"email\":\"{{trigger.email}}\", \"department\":\"{{trigger.department}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":8000,"retries":2},"description":"调用账号系统创建企业账号"},{"id":"seat","type":"http.request","name":"分配工位","x":960,"y":-140,"category":"action","data":{"method":"POST","url":"https://seat.internal/api/seat/assign","headers":{"Content-Type":"application/json"},"body":"{ \"email\":\"{{trigger.email}}\", \"department\":\"{{trigger.department}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"分配工位（按部门+入职日期）"},{"id":"permission","type":"http.request","name":"开通权限","x":960,"y":140,"category":"action","data":{"method":"POST","url":"https://idp.internal/api/permission/grant","headers":{"Content-Type":"application/json"},"body":"{ \"email\":\"{{trigger.email}}\", \"template\":\"{{trigger.position}}-template\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"按岗位模板开通 SaaS 权限"},{"id":"hrBP","type":"notify.email","name":"通知 HRBP","x":640,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"hrbp@meowflow.com","subject":"新员工入职：{{trigger.name}}","body":"请与 {{trigger.name}} 同步入职事项。","cc":[]},"description":"通知对接的 HRBP（含入职 checklist）"},{"id":"welcome","type":"ai.llm","name":"生成欢迎邮件","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.6,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"写一封给 {{trigger.name}} 入职 {{trigger.position}} 部门 {{trigger.department}} 的欢迎邮件，语气热情。"},"description":"个性化生成欢迎邮件"},{"id":"schedule","type":"ai.llm","name":"安排 onboarding 日程","x":1280,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于岗位 {{trigger.position}} 生成第一周入职日程，包含培训、导师介绍、团队会议。"},"description":"基于岗位模板生成第一周日程"},{"id":"sendWelcome","type":"notify.email","name":"发送欢迎包","x":1280,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"{{trigger.email}}","subject":"欢迎加入喵流！","body":"<pre>{{welcome.text}}\n\n第一周日程：{{schedule.text}}</pre>","cc":[]},"description":"发送欢迎邮件"},{"id":"end","type":"end.aggregator","name":"结束","x":1600,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"dup","type":"default"},{"id":"e3","source":"dup","target":"createAccount","label":"未注册","type":"condition"},{"id":"e4","source":"dup","target":"dupAlert","label":"已注册","type":"condition"},{"id":"e5","source":"dupAlert","target":"end","type":"default"},{"id":"e6","source":"createAccount","target":"hrBP","type":"default"},{"id":"e7","source":"createAccount","target":"welcome","type":"default"},{"id":"e8","source":"createAccount","target":"seat","type":"default"},{"id":"e9","source":"createAccount","target":"permission","type":"default"},{"id":"e10","source":"welcome","target":"schedule","type":"default"},{"id":"e11","source":"schedule","target":"sendWelcome","type":"default"},{"id":"e12","source":"sendWelcome","target":"end","type":"default"},{"id":"e13","source":"seat","target":"end","type":"default"},{"id":"e14","source":"permission","target":"end","type":"default"},{"id":"e15","source":"hrBP","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"HR 提交入职","x":0,"y":0,"category":"trigger","data":{"formId":"form_onboarding","fields":[{"key":"name","label":"姓名","type":"string","required":true},{"key":"email","label":"邮箱","type":"string","required":true},{"key":"position","label":"岗位","type":"string","required":true},{"key":"department","label":"部门","type":"string","required":true},{"key":"startDate","label":"入职日期","type":"date","required":true}]},"description":"HR 提交入职信息表单"},{"id":"validate","type":"code.transform","name":"查重校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const dup = (input.existingUsers || []).some(u => u.email === input.email); return { dup, name: input.name, email: input.email };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验邮箱是否已存在，避免重复入职"},{"id":"dup","type":"condition.if","name":"邮箱未注册?","x":320,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"dupAlert","type":"notify.email","name":"邮箱重复告警","x":320,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"hr@meowflow.com","subject":"【入职冲突】{{trigger.email}} 已存在","body":"邮箱 {{trigger.email}} 已在系统中，请核实。","cc":[]},"description":"通知 HR 邮箱已注册"},{"id":"createAccount","type":"http.request","name":"创建账号","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://idp.internal/api/account/create","headers":{"Content-Type":"application/json"},"body":"{ \"name\":\"{{trigger.name}}\", \"email\":\"{{trigger.email}}\", \"department\":\"{{trigger.department}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":8000,"retries":2},"description":"调用账号系统创建企业账号"},{"id":"seat","type":"http.request","name":"分配工位","x":960,"y":-140,"category":"action","data":{"method":"POST","url":"https://seat.internal/api/seat/assign","headers":{"Content-Type":"application/json"},"body":"{ \"email\":\"{{trigger.email}}\", \"department\":\"{{trigger.department}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"分配工位（按部门+入职日期）"},{"id":"permission","type":"http.request","name":"开通权限","x":960,"y":140,"category":"action","data":{"method":"POST","url":"https://idp.internal/api/permission/grant","headers":{"Content-Type":"application/json"},"body":"{ \"email\":\"{{trigger.email}}\", \"template\":\"{{trigger.position}}-template\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"按岗位模板开通 SaaS 权限"},{"id":"hrBP","type":"notify.email","name":"通知 HRBP","x":640,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"hrbp@meowflow.com","subject":"新员工入职：{{trigger.name}}","body":"请与 {{trigger.name}} 同步入职事项。","cc":[]},"description":"通知对接的 HRBP（含入职 checklist）"},{"id":"welcome","type":"ai.llm","name":"生成欢迎邮件","x":640,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.6,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"写一封给 {{trigger.name}} 入职 {{trigger.position}} 部门 {{trigger.department}} 的欢迎邮件，语气热情。"},"description":"个性化生成欢迎邮件"},{"id":"schedule","type":"ai.llm","name":"安排 onboarding 日程","x":1280,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于岗位 {{trigger.position}} 生成第一周入职日程，包含培训、导师介绍、团队会议。"},"description":"基于岗位模板生成第一周日程"},{"id":"sendWelcome","type":"notify.email","name":"发送欢迎包","x":1280,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"{{trigger.email}}","subject":"欢迎加入喵流！","body":"<pre>{{welcome.text}}\n\n第一周日程：{{schedule.text}}</pre>","cc":[]},"description":"发送欢迎邮件"},{"id":"end","type":"end.aggregator","name":"结束","x":1600,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"dup","type":"default"},{"id":"e3","source":"dup","target":"createAccount","label":"未注册","type":"condition"},{"id":"e4","source":"dup","target":"dupAlert","label":"已注册","type":"condition"},{"id":"e5","source":"dupAlert","target":"end","type":"default"},{"id":"e6","source":"createAccount","target":"hrBP","type":"default"},{"id":"e7","source":"createAccount","target":"welcome","type":"default"},{"id":"e8","source":"createAccount","target":"seat","type":"default"},{"id":"e9","source":"createAccount","target":"permission","type":"default"},{"id":"e10","source":"welcome","target":"schedule","type":"default"},{"id":"e11","source":"schedule","target":"sendWelcome","type":"default"},{"id":"e12","source":"sendWelcome","target":"end","type":"default"},{"id":"e13","source":"seat","target":"end","type":"default"},{"id":"e14","source":"permission","target":"end","type":"default"},{"id":"e15","source":"hrBP","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"HR 提交入职","type":"trigger.form","cx":120,"cy":30,"w":240,"h":60},{"id":"validate","name":"查重校验","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"dup","name":"邮箱未注册?","type":"condition.if","cx":440,"cy":170,"w":240,"h":60},{"id":"dupAlert","name":"邮箱重复告警","type":"notify.email","cx":440,"cy":-110,"w":240,"h":60},{"id":"createAccount","name":"创建账号","type":"http.request","cx":760,"cy":30,"w":240,"h":60},{"id":"seat","name":"分配工位","type":"http.request","cx":1080,"cy":-110,"w":240,"h":60},{"id":"permission","name":"开通权限","type":"http.request","cx":1080,"cy":170,"w":240,"h":60},{"id":"hrBP","name":"通知 HRBP","type":"notify.email","cx":760,"cy":-110,"w":240,"h":60},{"id":"welcome","name":"生成欢迎邮件","type":"ai.llm","cx":760,"cy":30,"w":240,"h":60},{"id":"schedule","name":"安排 onboarding 日程","type":"ai.llm","cx":1400,"cy":30,"w":240,"h":60},{"id":"sendWelcome","name":"发送欢迎包","type":"notify.email","cx":1400,"cy":-110,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":1720,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"validate"},{"id":"e2","source":"validate","target":"dup"},{"id":"e3","source":"dup","target":"createAccount","label":"未注册"},{"id":"e4","source":"dup","target":"dupAlert","label":"已注册"},{"id":"e5","source":"dupAlert","target":"end"},{"id":"e6","source":"createAccount","target":"hrBP"},{"id":"e7","source":"createAccount","target":"welcome"},{"id":"e8","source":"createAccount","target":"seat"},{"id":"e9","source":"createAccount","target":"permission"},{"id":"e10","source":"welcome","target":"schedule"},{"id":"e11","source":"schedule","target":"sendWelcome"},{"id":"e12","source":"sendWelcome","target":"end"},{"id":"e13","source":"seat","target":"end"},{"id":"e14","source":"permission","target":"end"},{"id":"e15","source":"hrBP","target":"end"}]}'::jsonb
+WHERE name = '员工入职流程';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"音频上传触发","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/ops/meeting-upload","authToken":"Bearer ****","timeout":10000},"description":"上传会议录音触发"},{"id":"validate","type":"code.transform","name":"校验音频","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ok = input.size < 100*1024*1024 && /wav|mp3|m4a/.test(input.format); return { ok, audioUrl: input.audioUrl };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验音频格式、大小、时长"},{"id":"asr","type":"http.request","name":"ASR 语音转写","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://asr.internal/api/recognize","headers":{"Content-Type":"application/json"},"body":"{ \"audioUrl\":\"{{validate.audioUrl}}\", \"diarization\":true, \"format\":\"wav\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":120000,"retries":2},"description":"调用 ASR 服务转写为文本（带说话人）"},{"id":"summarize","type":"ai.llm","name":"摘要 / 决议 / TODO","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"从以下文本中提取：summary、decisions[]、todos[{owner,content,due}], 输出 JSON。"},"description":"提取会议摘要、决议和待办"},{"id":"split","type":"code.transform","name":"拆分决议条目","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const decisions = (input.decisions || []).filter(d => d.content); const todos = (input.todos || []).filter(t => t.owner && t.content); return { decisions, todos, summary: input.summary || \"\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"将决议拆分为独立条目并校验完整性"},{"id":"kbNote","type":"http.request","name":"写入知识库","x":1600,"y":-140,"category":"action","data":{"method":"POST","url":"https://kb.internal/api/docs","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"会议纪要 {{split.summary.date}}\", \"content\":\"{{split.summary.text}}\", \"tags\":[\"meeting\"] }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把会议纪要写入知识库（含关键词索引）"},{"id":"email","type":"notify.email","name":"发送邮件","x":1600,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"","subject":"【会议纪要】{{split.summary.title}}","body":"<pre>{{split.summary.text}}</pre>","cc":[]},"description":"邮件发送会议纪要给与会者"},{"id":"feishu","type":"notify.feishu","name":"飞书群通知","x":1600,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书群推送摘要 + 决议列表"},{"id":"todoSync","type":"http.request","name":"同步待办","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://jira.internal/api/issue/bulk-create","headers":{"Content-Type":"application/json"},"body":"{ \"items\":{{split.todos}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把决议中的 TODO 同步到 Jira / 飞书任务"},{"id":"reject","type":"notify.feishu","name":"音频异常告警","x":320,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"音频格式异常 / 超大文件告警"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"asr","label":"通过","type":"condition"},{"id":"e3","source":"validate","target":"reject","label":"格式异常","type":"error"},{"id":"e4","source":"asr","target":"summarize","type":"default"},{"id":"e5","source":"summarize","target":"split","type":"default"},{"id":"e6","source":"split","target":"kbNote","type":"default"},{"id":"e7","source":"split","target":"email","type":"default"},{"id":"e8","source":"split","target":"feishu","type":"default"},{"id":"e9","source":"split","target":"todoSync","type":"default"},{"id":"e10","source":"kbNote","target":"end","type":"default"},{"id":"e11","source":"email","target":"end","type":"default"},{"id":"e12","source":"feishu","target":"end","type":"default"},{"id":"e13","source":"todoSync","target":"end","type":"default"},{"id":"e14","source":"reject","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"音频上传触发","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/ops/meeting-upload","authToken":"Bearer ****","timeout":10000},"description":"上传会议录音触发"},{"id":"validate","type":"code.transform","name":"校验音频","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ok = input.size < 100*1024*1024 && /wav|mp3|m4a/.test(input.format); return { ok, audioUrl: input.audioUrl };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验音频格式、大小、时长"},{"id":"asr","type":"http.request","name":"ASR 语音转写","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://asr.internal/api/recognize","headers":{"Content-Type":"application/json"},"body":"{ \"audioUrl\":\"{{validate.audioUrl}}\", \"diarization\":true, \"format\":\"wav\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":120000,"retries":2},"description":"调用 ASR 服务转写为文本（带说话人）"},{"id":"summarize","type":"ai.llm","name":"摘要 / 决议 / TODO","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"从以下文本中提取：summary、decisions[]、todos[{owner,content,due}], 输出 JSON。"},"description":"提取会议摘要、决议和待办"},{"id":"split","type":"code.transform","name":"拆分决议条目","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const decisions = (input.decisions || []).filter(d => d.content); const todos = (input.todos || []).filter(t => t.owner && t.content); return { decisions, todos, summary: input.summary || \"\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"将决议拆分为独立条目并校验完整性"},{"id":"kbNote","type":"http.request","name":"写入知识库","x":1600,"y":-140,"category":"action","data":{"method":"POST","url":"https://kb.internal/api/docs","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"会议纪要 {{split.summary.date}}\", \"content\":\"{{split.summary.text}}\", \"tags\":[\"meeting\"] }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把会议纪要写入知识库（含关键词索引）"},{"id":"email","type":"notify.email","name":"发送邮件","x":1600,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"","subject":"【会议纪要】{{split.summary.title}}","body":"<pre>{{split.summary.text}}</pre>","cc":[]},"description":"邮件发送会议纪要给与会者"},{"id":"feishu","type":"notify.feishu","name":"飞书群通知","x":1600,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书群推送摘要 + 决议列表"},{"id":"todoSync","type":"http.request","name":"同步待办","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://jira.internal/api/issue/bulk-create","headers":{"Content-Type":"application/json"},"body":"{ \"items\":{{split.todos}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把决议中的 TODO 同步到 Jira / 飞书任务"},{"id":"reject","type":"notify.feishu","name":"音频异常告警","x":320,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"音频格式异常 / 超大文件告警"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"asr","label":"通过","type":"condition"},{"id":"e3","source":"validate","target":"reject","label":"格式异常","type":"error"},{"id":"e4","source":"asr","target":"summarize","type":"default"},{"id":"e5","source":"summarize","target":"split","type":"default"},{"id":"e6","source":"split","target":"kbNote","type":"default"},{"id":"e7","source":"split","target":"email","type":"default"},{"id":"e8","source":"split","target":"feishu","type":"default"},{"id":"e9","source":"split","target":"todoSync","type":"default"},{"id":"e10","source":"kbNote","target":"end","type":"default"},{"id":"e11","source":"email","target":"end","type":"default"},{"id":"e12","source":"feishu","target":"end","type":"default"},{"id":"e13","source":"todoSync","target":"end","type":"default"},{"id":"e14","source":"reject","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"音频上传触发","type":"trigger.webhook","cx":120,"cy":30,"w":240,"h":60},{"id":"validate","name":"校验音频","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"asr","name":"ASR 语音转写","type":"http.request","cx":760,"cy":30,"w":240,"h":60},{"id":"summarize","name":"摘要 / 决议 / TODO","type":"ai.llm","cx":1080,"cy":30,"w":240,"h":60},{"id":"split","name":"拆分决议条目","type":"code.transform","cx":1400,"cy":30,"w":240,"h":60},{"id":"kbNote","name":"写入知识库","type":"http.request","cx":1720,"cy":-110,"w":240,"h":60},{"id":"email","name":"发送邮件","type":"notify.email","cx":1720,"cy":170,"w":240,"h":60},{"id":"feishu","name":"飞书群通知","type":"notify.feishu","cx":1720,"cy":30,"w":240,"h":60},{"id":"todoSync","name":"同步待办","type":"http.request","cx":2040,"cy":30,"w":240,"h":60},{"id":"reject","name":"音频异常告警","type":"notify.feishu","cx":440,"cy":-110,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2360,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"validate"},{"id":"e2","source":"validate","target":"asr","label":"通过"},{"id":"e3","source":"validate","target":"reject","label":"格式异常"},{"id":"e4","source":"asr","target":"summarize"},{"id":"e5","source":"summarize","target":"split"},{"id":"e6","source":"split","target":"kbNote"},{"id":"e7","source":"split","target":"email"},{"id":"e8","source":"split","target":"feishu"},{"id":"e9","source":"split","target":"todoSync"},{"id":"e10","source":"kbNote","target":"end"},{"id":"e11","source":"email","target":"end"},{"id":"e12","source":"feishu","target":"end"},{"id":"e13","source":"todoSync","target":"end"},{"id":"e14","source":"reject","target":"end"}]}'::jsonb
+WHERE name = '会议纪要生成';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 18:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 18 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每日傍晚 6 点汇总"},{"id":"fetch","type":"http.request","name":"拉取日报源","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://reports.internal/api/daily-entries/today","headers":{"X-Service":"meowflow"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":10000,"retries":3},"description":"拉取各团队日报"},{"id":"validate","type":"code.transform","name":"校验与去重","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); const valid = (input.entries || []).filter(e => e.team && e.content && !seen.has(e.team + e.date) && seen.add(e.team + e.date)); return { entries: valid };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验数据完整性，按团队去重"},{"id":"branch","type":"condition.if","name":"有数据?","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"emptyAlert","type":"notify.feishu","name":"日报缺失告警","x":960,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"今日日报缺失通知管理层"},{"id":"merge","type":"code.transform","name":"合并多源数据","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const map = {}; (input.entries || []).forEach(e => { (map[e.team] ||= []).push(e); }); return map;","description":"使用 JSONata / JS 表达式做字段映射"},"description":"合并并按团队归档"},{"id":"summary","type":"ai.llm","name":"汇总摘要","x":1600,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1500,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于 {{merge}} 输出 200 字管理层摘要，重点强调风险与亮点。"},"description":"生成管理层可读的汇总摘要"},{"id":"risk","type":"ai.llm","name":"风险识别","x":1600,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"从日报条目中识别风险，给出风险等级和建议。"},"description":"从日报中识别潜在风险（延期/资源缺口/质量问题）"},{"id":"send","type":"notify.feishu","name":"发送到管理层群","x":1920,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通过飞书机器人推送到管理群（含摘要+风险）"},{"id":"archive","type":"http.request","name":"归档知识库","x":1920,"y":140,"category":"action","data":{"method":"POST","url":"https://kb.internal/api/docs","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"日报 {{merge.date}}\", \"content\":\"{{summary.text}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"日报归档到知识库供检索"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"fetch","type":"default"},{"id":"e2","source":"fetch","target":"validate","type":"default"},{"id":"e3","source":"validate","target":"branch","type":"default"},{"id":"e4","source":"branch","target":"merge","label":"有","type":"condition"},{"id":"e5","source":"branch","target":"emptyAlert","label":"空","type":"condition"},{"id":"e6","source":"merge","target":"summary","type":"default"},{"id":"e7","source":"merge","target":"risk","type":"default"},{"id":"e8","source":"summary","target":"send","type":"default"},{"id":"e9","source":"risk","target":"send","type":"default"},{"id":"e10","source":"send","target":"archive","type":"default"},{"id":"e11","source":"archive","target":"end","type":"default"},{"id":"e12","source":"emptyAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 18:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 18 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每日傍晚 6 点汇总"},{"id":"fetch","type":"http.request","name":"拉取日报源","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://reports.internal/api/daily-entries/today","headers":{"X-Service":"meowflow"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":10000,"retries":3},"description":"拉取各团队日报"},{"id":"validate","type":"code.transform","name":"校验与去重","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); const valid = (input.entries || []).filter(e => e.team && e.content && !seen.has(e.team + e.date) && seen.add(e.team + e.date)); return { entries: valid };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验数据完整性，按团队去重"},{"id":"branch","type":"condition.if","name":"有数据?","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"emptyAlert","type":"notify.feishu","name":"日报缺失告警","x":960,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"今日日报缺失通知管理层"},{"id":"merge","type":"code.transform","name":"合并多源数据","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const map = {}; (input.entries || []).forEach(e => { (map[e.team] ||= []).push(e); }); return map;","description":"使用 JSONata / JS 表达式做字段映射"},"description":"合并并按团队归档"},{"id":"summary","type":"ai.llm","name":"汇总摘要","x":1600,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1500,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于 {{merge}} 输出 200 字管理层摘要，重点强调风险与亮点。"},"description":"生成管理层可读的汇总摘要"},{"id":"risk","type":"ai.llm","name":"风险识别","x":1600,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"从日报条目中识别风险，给出风险等级和建议。"},"description":"从日报中识别潜在风险（延期/资源缺口/质量问题）"},{"id":"send","type":"notify.feishu","name":"发送到管理层群","x":1920,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通过飞书机器人推送到管理群（含摘要+风险）"},{"id":"archive","type":"http.request","name":"归档知识库","x":1920,"y":140,"category":"action","data":{"method":"POST","url":"https://kb.internal/api/docs","headers":{"Content-Type":"application/json"},"body":"{ \"title\":\"日报 {{merge.date}}\", \"content\":\"{{summary.text}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"日报归档到知识库供检索"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"fetch","type":"default"},{"id":"e2","source":"fetch","target":"validate","type":"default"},{"id":"e3","source":"validate","target":"branch","type":"default"},{"id":"e4","source":"branch","target":"merge","label":"有","type":"condition"},{"id":"e5","source":"branch","target":"emptyAlert","label":"空","type":"condition"},{"id":"e6","source":"merge","target":"summary","type":"default"},{"id":"e7","source":"merge","target":"risk","type":"default"},{"id":"e8","source":"summary","target":"send","type":"default"},{"id":"e9","source":"risk","target":"send","type":"default"},{"id":"e10","source":"send","target":"archive","type":"default"},{"id":"e11","source":"archive","target":"end","type":"default"},{"id":"e12","source":"emptyAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"每日 18:00","type":"trigger.cron","cx":120,"cy":30,"w":240,"h":60},{"id":"fetch","name":"拉取日报源","type":"http.request","cx":440,"cy":30,"w":240,"h":60},{"id":"validate","name":"校验与去重","type":"code.transform","cx":760,"cy":30,"w":240,"h":60},{"id":"branch","name":"有数据?","type":"condition.if","cx":1080,"cy":30,"w":240,"h":60},{"id":"emptyAlert","name":"日报缺失告警","type":"notify.feishu","cx":1080,"cy":170,"w":240,"h":60},{"id":"merge","name":"合并多源数据","type":"code.transform","cx":1400,"cy":30,"w":240,"h":60},{"id":"summary","name":"汇总摘要","type":"ai.llm","cx":1720,"cy":30,"w":240,"h":60},{"id":"risk","name":"风险识别","type":"ai.llm","cx":1720,"cy":170,"w":240,"h":60},{"id":"send","name":"发送到管理层群","type":"notify.feishu","cx":2040,"cy":30,"w":240,"h":60},{"id":"archive","name":"归档知识库","type":"http.request","cx":2040,"cy":170,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2360,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"fetch"},{"id":"e2","source":"fetch","target":"validate"},{"id":"e3","source":"validate","target":"branch"},{"id":"e4","source":"branch","target":"merge","label":"有"},{"id":"e5","source":"branch","target":"emptyAlert","label":"空"},{"id":"e6","source":"merge","target":"summary"},{"id":"e7","source":"merge","target":"risk"},{"id":"e8","source":"summary","target":"send"},{"id":"e9","source":"risk","target":"send"},{"id":"e10","source":"send","target":"archive"},{"id":"e11","source":"archive","target":"end"},{"id":"e12","source":"emptyAlert","target":"end"}]}'::jsonb
+WHERE name = '团队日报汇总';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"提交商品参数","x":0,"y":0,"category":"trigger","data":{"formId":"form_product","fields":[{"key":"productName","label":"商品名","type":"string","required":true},{"key":"features","label":"卖点","type":"text","required":true},{"key":"platform","label":"平台","type":"select","options":["京东","淘宝","小红书","抖音"],"required":true},{"key":"audience","label":"目标人群","type":"string","required":true}]},"description":"提交商品参数表单"},{"id":"extract","type":"ai.llm","name":"卖点提炼","x":320,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请从 {{trigger.features}} 中提炼 5 个高吸引力卖点。"},"description":"对原始素材提炼 5 个核心卖点"},{"id":"profile","type":"ai.llm","name":"人群画像","x":320,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"描述 {{trigger.audience}} 的核心特征：年龄/性别/兴趣/购买动机。"},"description":"基于目标人群生成消费者画像"},{"id":"style","type":"ai.llm","name":"平台风格适配","x":640,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.5,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于平台 {{trigger.platform}} 的风格重写卖点，目标用户是 {{trigger.audience}}。"},"description":"基于目标平台调整文案风格"},{"id":"copy","type":"ai.llm","name":"生成多版本文案","x":960,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.8,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"生成 3 个版本标题 + 文案 + hashtag，输出 JSON 数组。"},"description":"生成 3 个版本标题 + 文案 + hashtag"},{"id":"check","type":"ai.llm","name":"合规审核","x":960,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"对文案做合规检查（广告法、虚假宣传、违禁词），输出 pass 与 issues。"},"description":"审核文案是否合规（广告法、虚假宣传、违禁词）"},{"id":"branch","type":"condition.if","name":"通过审核?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"fixCopy","type":"ai.llm","name":"修复文案","x":1280,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于 issues 修改文案，保留风格。"},"description":"基于 issues 修复文案"},{"id":"score","type":"ai.llm","name":"质量评分","x":1600,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":800,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于合规分数与创意分数综合打分，给出排序。"},"description":"对每版文案做综合评分（创意/合规/转化）"},{"id":"rank","type":"code.transform","name":"排序选 Top","x":1920,"y":0,"category":"transform","data":{"language":"javascript","source":"const sorted = (input.copies || []).sort((a,b) => b.score - a.score); return { top: sorted[0], ranked: sorted };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"对文案按综合评分排序选最佳"},{"id":"store","type":"http.request","name":"入库","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://cms.internal/api/copy/save","headers":{"Content-Type":"application/json"},"body":"{ \"top\":{{rank.top}}, \"ranked\":{{rank.ranked}}, \"platform\":\"{{trigger.platform}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把最佳版本 + 全量入库"},{"id":"preview","type":"http.request","name":"渲染预览","x":2240,"y":-140,"category":"action","data":{"method":"POST","url":"https://render.internal/api/preview","headers":{"Content-Type":"application/json"},"body":"{ \"copyId\":\"{{store.copyId}}\", \"platform\":\"{{trigger.platform}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"渲染文案预览图供运营选"},{"id":"notify","type":"notify.feishu","name":"通知运营","x":2240,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书通知运营文案已生成"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"extract","type":"default"},{"id":"e2","source":"trigger","target":"profile","type":"default"},{"id":"e3","source":"extract","target":"style","type":"default"},{"id":"e4","source":"profile","target":"style","type":"default"},{"id":"e5","source":"style","target":"copy","type":"default"},{"id":"e6","source":"copy","target":"check","type":"default"},{"id":"e7","source":"check","target":"branch","label":"审核","type":"condition"},{"id":"e8","source":"branch","target":"score","label":"通过","type":"condition"},{"id":"e9","source":"branch","target":"fixCopy","label":"不通过","type":"condition"},{"id":"e10","source":"fixCopy","target":"check","label":"重审","type":"loop"},{"id":"e11","source":"score","target":"rank","type":"default"},{"id":"e12","source":"rank","target":"store","type":"default"},{"id":"e13","source":"store","target":"preview","type":"default"},{"id":"e14","source":"store","target":"notify","type":"default"},{"id":"e15","source":"preview","target":"end","type":"default"},{"id":"e16","source":"notify","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"提交商品参数","x":0,"y":0,"category":"trigger","data":{"formId":"form_product","fields":[{"key":"productName","label":"商品名","type":"string","required":true},{"key":"features","label":"卖点","type":"text","required":true},{"key":"platform","label":"平台","type":"select","options":["京东","淘宝","小红书","抖音"],"required":true},{"key":"audience","label":"目标人群","type":"string","required":true}]},"description":"提交商品参数表单"},{"id":"extract","type":"ai.llm","name":"卖点提炼","x":320,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"请从 {{trigger.features}} 中提炼 5 个高吸引力卖点。"},"description":"对原始素材提炼 5 个核心卖点"},{"id":"profile","type":"ai.llm","name":"人群画像","x":320,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"描述 {{trigger.audience}} 的核心特征：年龄/性别/兴趣/购买动机。"},"description":"基于目标人群生成消费者画像"},{"id":"style","type":"ai.llm","name":"平台风格适配","x":640,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.5,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于平台 {{trigger.platform}} 的风格重写卖点，目标用户是 {{trigger.audience}}。"},"description":"基于目标平台调整文案风格"},{"id":"copy","type":"ai.llm","name":"生成多版本文案","x":960,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.8,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"生成 3 个版本标题 + 文案 + hashtag，输出 JSON 数组。"},"description":"生成 3 个版本标题 + 文案 + hashtag"},{"id":"check","type":"ai.llm","name":"合规审核","x":960,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"对文案做合规检查（广告法、虚假宣传、违禁词），输出 pass 与 issues。"},"description":"审核文案是否合规（广告法、虚假宣传、违禁词）"},{"id":"branch","type":"condition.if","name":"通过审核?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"fixCopy","type":"ai.llm","name":"修复文案","x":1280,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于 issues 修改文案，保留风格。"},"description":"基于 issues 修复文案"},{"id":"score","type":"ai.llm","name":"质量评分","x":1600,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":800,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于合规分数与创意分数综合打分，给出排序。"},"description":"对每版文案做综合评分（创意/合规/转化）"},{"id":"rank","type":"code.transform","name":"排序选 Top","x":1920,"y":0,"category":"transform","data":{"language":"javascript","source":"const sorted = (input.copies || []).sort((a,b) => b.score - a.score); return { top: sorted[0], ranked: sorted };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"对文案按综合评分排序选最佳"},{"id":"store","type":"http.request","name":"入库","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://cms.internal/api/copy/save","headers":{"Content-Type":"application/json"},"body":"{ \"top\":{{rank.top}}, \"ranked\":{{rank.ranked}}, \"platform\":\"{{trigger.platform}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把最佳版本 + 全量入库"},{"id":"preview","type":"http.request","name":"渲染预览","x":2240,"y":-140,"category":"action","data":{"method":"POST","url":"https://render.internal/api/preview","headers":{"Content-Type":"application/json"},"body":"{ \"copyId\":\"{{store.copyId}}\", \"platform\":\"{{trigger.platform}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"渲染文案预览图供运营选"},{"id":"notify","type":"notify.feishu","name":"通知运营","x":2240,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书通知运营文案已生成"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"extract","type":"default"},{"id":"e2","source":"trigger","target":"profile","type":"default"},{"id":"e3","source":"extract","target":"style","type":"default"},{"id":"e4","source":"profile","target":"style","type":"default"},{"id":"e5","source":"style","target":"copy","type":"default"},{"id":"e6","source":"copy","target":"check","type":"default"},{"id":"e7","source":"check","target":"branch","label":"审核","type":"condition"},{"id":"e8","source":"branch","target":"score","label":"通过","type":"condition"},{"id":"e9","source":"branch","target":"fixCopy","label":"不通过","type":"condition"},{"id":"e10","source":"fixCopy","target":"check","label":"重审","type":"loop"},{"id":"e11","source":"score","target":"rank","type":"default"},{"id":"e12","source":"rank","target":"store","type":"default"},{"id":"e13","source":"store","target":"preview","type":"default"},{"id":"e14","source":"store","target":"notify","type":"default"},{"id":"e15","source":"preview","target":"end","type":"default"},{"id":"e16","source":"notify","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"提交商品参数","type":"trigger.form","cx":120,"cy":30,"w":240,"h":60},{"id":"extract","name":"卖点提炼","type":"ai.llm","cx":440,"cy":-110,"w":240,"h":60},{"id":"profile","name":"人群画像","type":"ai.llm","cx":440,"cy":30,"w":240,"h":60},{"id":"style","name":"平台风格适配","type":"ai.llm","cx":760,"cy":-110,"w":240,"h":60},{"id":"copy","name":"生成多版本文案","type":"ai.llm","cx":1080,"cy":-110,"w":240,"h":60},{"id":"check","name":"合规审核","type":"ai.llm","cx":1080,"cy":170,"w":240,"h":60},{"id":"branch","name":"通过审核?","type":"condition.if","cx":1400,"cy":30,"w":240,"h":60},{"id":"fixCopy","name":"修复文案","type":"ai.llm","cx":1400,"cy":170,"w":240,"h":60},{"id":"score","name":"质量评分","type":"ai.llm","cx":1720,"cy":30,"w":240,"h":60},{"id":"rank","name":"排序选 Top","type":"code.transform","cx":2040,"cy":30,"w":240,"h":60},{"id":"store","name":"入库","type":"http.request","cx":2360,"cy":30,"w":240,"h":60},{"id":"preview","name":"渲染预览","type":"http.request","cx":2360,"cy":-110,"w":240,"h":60},{"id":"notify","name":"通知运营","type":"notify.feishu","cx":2360,"cy":170,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2680,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"extract"},{"id":"e2","source":"trigger","target":"profile"},{"id":"e3","source":"extract","target":"style"},{"id":"e4","source":"profile","target":"style"},{"id":"e5","source":"style","target":"copy"},{"id":"e6","source":"copy","target":"check"},{"id":"e7","source":"check","target":"branch","label":"审核"},{"id":"e8","source":"branch","target":"score","label":"通过"},{"id":"e9","source":"branch","target":"fixCopy","label":"不通过"},{"id":"e10","source":"fixCopy","target":"check","label":"重审"},{"id":"e11","source":"score","target":"rank"},{"id":"e12","source":"rank","target":"store"},{"id":"e13","source":"store","target":"preview"},{"id":"e14","source":"store","target":"notify"},{"id":"e15","source":"preview","target":"end"},{"id":"e16","source":"notify","target":"end"}]}'::jsonb
+WHERE name = '营销文案生成';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每周一 09:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 9 * * MON","timezone":"Asia/Shanghai","enabled":true},"description":"每周一早上 9 点触发"},{"id":"query","type":"http.request","name":"查询数据源","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://bi.internal/api/metrics/last-week","headers":{"Content-Type":"application/json"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":15000,"retries":3},"description":"查询上周业务核心指标"},{"id":"clean","type":"code.transform","name":"清洗与聚合","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"return (input.metrics || []).map(m => ({ key: m.key, value: m.value, lastWeek: m.lastWeek, delta: m.value - m.lastWeek, deltaPct: m.lastWeek ? ((m.value - m.lastWeek) / m.lastWeek * 100).toFixed(2) : 0 }));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"清洗字段并计算环比/同比"},{"id":"rank","type":"code.transform","name":"Top / Bottom 排序","x":960,"y":0,"category":"transform","data":{"language":"javascript","source":"const sorted = (input || []).slice().sort((a,b) => b.deltaPct - a.deltaPct); return { top5: sorted.slice(0, 5), bottom5: sorted.slice(-5).reverse(), all: sorted };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"取 Top 5 / Bottom 5 指标"},{"id":"insight","type":"ai.llm","name":"趋势洞察","x":1280,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于上周数据给出 3 个核心洞察 + 3 条建议。"},"description":"识别趋势、异常、建议（结合 Top/Bottom）"},{"id":"render","type":"ai.llm","name":"渲染图表说明","x":1600,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"为 Top5 指标生成图表标题与一句话洞察。"},"description":"生成图表标题与一句话洞察"},{"id":"chart","type":"http.request","name":"生成图表","x":1600,"y":140,"category":"action","data":{"method":"POST","url":"https://chart.internal/api/render","headers":{"Content-Type":"application/json"},"body":"{ \"type\":\"bar\", \"data\":{{rank.top5}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"调用图表服务生成 PNG 图表"},{"id":"email","type":"notify.email","name":"发送周报","x":1600,"y":0,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"","subject":"【业务周报】{{insight.title}}","body":"<pre>{{insight.body}}</pre><img src=\"{{chart.url}}\"/>","cc":[]},"description":"邮件发送周报（含图表）"},{"id":"feishu","type":"notify.feishu","name":"飞书推送","x":1920,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书群推送到管理层"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"query","type":"default"},{"id":"e2","source":"query","target":"clean","type":"default"},{"id":"e3","source":"clean","target":"rank","type":"default"},{"id":"e4","source":"rank","target":"insight","type":"default"},{"id":"e5","source":"rank","target":"render","type":"default"},{"id":"e6","source":"insight","target":"email","type":"default"},{"id":"e7","source":"render","target":"chart","type":"default"},{"id":"e8","source":"chart","target":"email","type":"default"},{"id":"e9","source":"email","target":"feishu","type":"default"},{"id":"e10","source":"feishu","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每周一 09:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 9 * * MON","timezone":"Asia/Shanghai","enabled":true},"description":"每周一早上 9 点触发"},{"id":"query","type":"http.request","name":"查询数据源","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://bi.internal/api/metrics/last-week","headers":{"Content-Type":"application/json"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":15000,"retries":3},"description":"查询上周业务核心指标"},{"id":"clean","type":"code.transform","name":"清洗与聚合","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"return (input.metrics || []).map(m => ({ key: m.key, value: m.value, lastWeek: m.lastWeek, delta: m.value - m.lastWeek, deltaPct: m.lastWeek ? ((m.value - m.lastWeek) / m.lastWeek * 100).toFixed(2) : 0 }));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"清洗字段并计算环比/同比"},{"id":"rank","type":"code.transform","name":"Top / Bottom 排序","x":960,"y":0,"category":"transform","data":{"language":"javascript","source":"const sorted = (input || []).slice().sort((a,b) => b.deltaPct - a.deltaPct); return { top5: sorted.slice(0, 5), bottom5: sorted.slice(-5).reverse(), all: sorted };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"取 Top 5 / Bottom 5 指标"},{"id":"insight","type":"ai.llm","name":"趋势洞察","x":1280,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.2,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于上周数据给出 3 个核心洞察 + 3 条建议。"},"description":"识别趋势、异常、建议（结合 Top/Bottom）"},{"id":"render","type":"ai.llm","name":"渲染图表说明","x":1600,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"为 Top5 指标生成图表标题与一句话洞察。"},"description":"生成图表标题与一句话洞察"},{"id":"chart","type":"http.request","name":"生成图表","x":1600,"y":140,"category":"action","data":{"method":"POST","url":"https://chart.internal/api/render","headers":{"Content-Type":"application/json"},"body":"{ \"type\":\"bar\", \"data\":{{rank.top5}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"调用图表服务生成 PNG 图表"},{"id":"email","type":"notify.email","name":"发送周报","x":1600,"y":0,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"","subject":"【业务周报】{{insight.title}}","body":"<pre>{{insight.body}}</pre><img src=\"{{chart.url}}\"/>","cc":[]},"description":"邮件发送周报（含图表）"},{"id":"feishu","type":"notify.feishu","name":"飞书推送","x":1920,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书群推送到管理层"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"query","type":"default"},{"id":"e2","source":"query","target":"clean","type":"default"},{"id":"e3","source":"clean","target":"rank","type":"default"},{"id":"e4","source":"rank","target":"insight","type":"default"},{"id":"e5","source":"rank","target":"render","type":"default"},{"id":"e6","source":"insight","target":"email","type":"default"},{"id":"e7","source":"render","target":"chart","type":"default"},{"id":"e8","source":"chart","target":"email","type":"default"},{"id":"e9","source":"email","target":"feishu","type":"default"},{"id":"e10","source":"feishu","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"每周一 09:00","type":"trigger.cron","cx":120,"cy":30,"w":240,"h":60},{"id":"query","name":"查询数据源","type":"http.request","cx":440,"cy":30,"w":240,"h":60},{"id":"clean","name":"清洗与聚合","type":"code.transform","cx":760,"cy":30,"w":240,"h":60},{"id":"rank","name":"Top / Bottom 排序","type":"code.transform","cx":1080,"cy":30,"w":240,"h":60},{"id":"insight","name":"趋势洞察","type":"ai.llm","cx":1400,"cy":30,"w":240,"h":60},{"id":"render","name":"渲染图表说明","type":"ai.llm","cx":1720,"cy":-110,"w":240,"h":60},{"id":"chart","name":"生成图表","type":"http.request","cx":1720,"cy":170,"w":240,"h":60},{"id":"email","name":"发送周报","type":"notify.email","cx":1720,"cy":30,"w":240,"h":60},{"id":"feishu","name":"飞书推送","type":"notify.feishu","cx":2040,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2360,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"query"},{"id":"e2","source":"query","target":"clean"},{"id":"e3","source":"clean","target":"rank"},{"id":"e4","source":"rank","target":"insight"},{"id":"e5","source":"rank","target":"render"},{"id":"e6","source":"insight","target":"email"},{"id":"e7","source":"render","target":"chart"},{"id":"e8","source":"chart","target":"email"},{"id":"e9","source":"email","target":"feishu"},{"id":"e10","source":"feishu","target":"end"}]}'::jsonb
+WHERE name = '数据周报生成';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"上传发票触发","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/finance/invoice","authToken":"Bearer ****","timeout":15000},"description":"上传发票图片触发"},{"id":"validate","type":"code.transform","name":"校验图片","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ok = /png|jpe?g|pdf/.test(input.format) && input.size < 10*1024*1024; return { ok, imageUrl: input.imageUrl, format: input.format };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验图片格式与大小"},{"id":"ocr","type":"http.request","name":"OCR 识别","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://ocr.internal/api/invoice/recognize","headers":{"Content-Type":"application/json"},"body":"{ \"imageUrl\":\"{{validate.imageUrl}}\", \"format\":\"{{validate.format}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":30000,"retries":2},"description":"调用 OCR 识别发票字段"},{"id":"verify","type":"ai.llm","name":"字段校验 / 真伪","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.05,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"校验以下发票字段并给出风险等级 + 原因（低/中/高）。"},"description":"校验发票号、金额、税号等字段并判断真伪"},{"id":"dupCheck","type":"code.transform","name":"查重","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const dup = (input.history || []).some(h => h.invoiceNo === input.invoiceNo); return { dup, riskLevel: input.riskLevel };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验发票号是否重复报销"},{"id":"branch","type":"condition.if","name":"通过?","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"archive","type":"http.request","name":"入档案系统","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://archive.internal/api/invoices","headers":{"Content-Type":"application/json"},"body":"{ \"invoiceNo\":\"{{verify.invoiceNo}}\", \"amount\":{{verify.amount}}, \"taxNo\":\"{{verify.taxNo}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把发票推入档案系统"},{"id":"approve","type":"http.request","name":"提交财务审批","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/finance/invoice-approve","headers":{"Content-Type":"application/json"},"body":"{ \"invoiceNo\":\"{{verify.invoiceNo}}\", \"amount\":{{verify.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"提交财务审批流"},{"id":"alert","type":"notify.email","name":"通知财务复核","x":1920,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"finance-review@meowflow.com","subject":"【待复核发票】{{verify.invoiceNo}}","body":"<pre>{{verify.notes}}</pre>","cc":[]},"description":"通知财务复核（重复或风险等级高）"},{"id":"payment","type":"http.request","name":"触发付款","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://pay.internal/api/payment/disburse","headers":{"Content-Type":"application/json"},"body":"{ \"invoiceNo\":\"{{verify.invoiceNo}}\", \"amount\":{{verify.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"审批通过后调支付系统"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"ocr","label":"通过","type":"condition"},{"id":"e3","source":"validate","target":"alert","label":"图片异常","type":"error"},{"id":"e4","source":"ocr","target":"verify","type":"default"},{"id":"e5","source":"verify","target":"dupCheck","type":"default"},{"id":"e6","source":"dupCheck","target":"branch","type":"default"},{"id":"e7","source":"branch","target":"archive","label":"通过","type":"condition"},{"id":"e8","source":"branch","target":"alert","label":"复核","type":"condition"},{"id":"e9","source":"archive","target":"approve","type":"default"},{"id":"e10","source":"approve","target":"payment","type":"default"},{"id":"e11","source":"payment","target":"end","type":"default"},{"id":"e12","source":"alert","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"上传发票触发","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/finance/invoice","authToken":"Bearer ****","timeout":15000},"description":"上传发票图片触发"},{"id":"validate","type":"code.transform","name":"校验图片","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ok = /png|jpe?g|pdf/.test(input.format) && input.size < 10*1024*1024; return { ok, imageUrl: input.imageUrl, format: input.format };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验图片格式与大小"},{"id":"ocr","type":"http.request","name":"OCR 识别","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://ocr.internal/api/invoice/recognize","headers":{"Content-Type":"application/json"},"body":"{ \"imageUrl\":\"{{validate.imageUrl}}\", \"format\":\"{{validate.format}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":30000,"retries":2},"description":"调用 OCR 识别发票字段"},{"id":"verify","type":"ai.llm","name":"字段校验 / 真伪","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.05,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"校验以下发票字段并给出风险等级 + 原因（低/中/高）。"},"description":"校验发票号、金额、税号等字段并判断真伪"},{"id":"dupCheck","type":"code.transform","name":"查重","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const dup = (input.history || []).some(h => h.invoiceNo === input.invoiceNo); return { dup, riskLevel: input.riskLevel };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验发票号是否重复报销"},{"id":"branch","type":"condition.if","name":"通过?","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"archive","type":"http.request","name":"入档案系统","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://archive.internal/api/invoices","headers":{"Content-Type":"application/json"},"body":"{ \"invoiceNo\":\"{{verify.invoiceNo}}\", \"amount\":{{verify.amount}}, \"taxNo\":\"{{verify.taxNo}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"把发票推入档案系统"},{"id":"approve","type":"http.request","name":"提交财务审批","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/finance/invoice-approve","headers":{"Content-Type":"application/json"},"body":"{ \"invoiceNo\":\"{{verify.invoiceNo}}\", \"amount\":{{verify.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"提交财务审批流"},{"id":"alert","type":"notify.email","name":"通知财务复核","x":1920,"y":140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"finance-review@meowflow.com","subject":"【待复核发票】{{verify.invoiceNo}}","body":"<pre>{{verify.notes}}</pre>","cc":[]},"description":"通知财务复核（重复或风险等级高）"},{"id":"payment","type":"http.request","name":"触发付款","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://pay.internal/api/payment/disburse","headers":{"Content-Type":"application/json"},"body":"{ \"invoiceNo\":\"{{verify.invoiceNo}}\", \"amount\":{{verify.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"审批通过后调支付系统"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"ocr","label":"通过","type":"condition"},{"id":"e3","source":"validate","target":"alert","label":"图片异常","type":"error"},{"id":"e4","source":"ocr","target":"verify","type":"default"},{"id":"e5","source":"verify","target":"dupCheck","type":"default"},{"id":"e6","source":"dupCheck","target":"branch","type":"default"},{"id":"e7","source":"branch","target":"archive","label":"通过","type":"condition"},{"id":"e8","source":"branch","target":"alert","label":"复核","type":"condition"},{"id":"e9","source":"archive","target":"approve","type":"default"},{"id":"e10","source":"approve","target":"payment","type":"default"},{"id":"e11","source":"payment","target":"end","type":"default"},{"id":"e12","source":"alert","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"上传发票触发","type":"trigger.webhook","cx":120,"cy":30,"w":240,"h":60},{"id":"validate","name":"校验图片","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"ocr","name":"OCR 识别","type":"http.request","cx":760,"cy":30,"w":240,"h":60},{"id":"verify","name":"字段校验 / 真伪","type":"ai.llm","cx":1080,"cy":30,"w":240,"h":60},{"id":"dupCheck","name":"查重","type":"code.transform","cx":1400,"cy":30,"w":240,"h":60},{"id":"branch","name":"通过?","type":"condition.if","cx":1720,"cy":30,"w":240,"h":60},{"id":"archive","name":"入档案系统","type":"http.request","cx":2040,"cy":-110,"w":240,"h":60},{"id":"approve","name":"提交财务审批","type":"http.request","cx":2040,"cy":30,"w":240,"h":60},{"id":"alert","name":"通知财务复核","type":"notify.email","cx":2040,"cy":170,"w":240,"h":60},{"id":"payment","name":"触发付款","type":"http.request","cx":2360,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2680,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"validate"},{"id":"e2","source":"validate","target":"ocr","label":"通过"},{"id":"e3","source":"validate","target":"alert","label":"图片异常"},{"id":"e4","source":"ocr","target":"verify"},{"id":"e5","source":"verify","target":"dupCheck"},{"id":"e6","source":"dupCheck","target":"branch"},{"id":"e7","source":"branch","target":"archive","label":"通过"},{"id":"e8","source":"branch","target":"alert","label":"复核"},{"id":"e9","source":"archive","target":"approve"},{"id":"e10","source":"approve","target":"payment"},{"id":"e11","source":"payment","target":"end"},{"id":"e12","source":"alert","target":"end"}]}'::jsonb
+WHERE name = '发票识别与归档';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"员工提交报销","x":0,"y":0,"category":"trigger","data":{"formId":"form_reimburse","fields":[{"key":"applicant","label":"申请人","type":"string","required":true},{"key":"amount","label":"金额","type":"number","required":true},{"key":"category","label":"类别","type":"select","options":["差旅","招待","办公"],"required":true},{"key":"reason","label":"事由","type":"text","required":true},{"key":"invoiceNo","label":"发票号","type":"string","required":true}]},"description":"员工报销表单"},{"id":"dedup","type":"code.transform","name":"查重校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const exists = (input.dups || []).some(d => d.invoiceNo === input.invoiceNo); const budgetLeft = (input.budget || 0) - (input.used || 0); return { exists, budgetLeft, amount: input.amount };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"查重并校验规则"},{"id":"budgetCheck","type":"condition.if","name":"预算够?","x":640,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"budgetAlert","type":"notify.feishu","name":"预算超支","x":640,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"部门预算不足告警财务"},{"id":"amount","type":"condition.if","name":"金额路由","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"leader","type":"http.request","name":"主管审批","x":1280,"y":-140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/reimburse/lead-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":2},"description":"主管审批"},{"id":"finance","type":"http.request","name":"财务终审","x":1280,"y":0,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/reimburse/finance-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}}, \"category\":\"{{trigger.category}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":2},"description":"财务终审（大额）"},{"id":"approve","type":"http.request","name":"自动审批","x":1280,"y":140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/reimburse/auto-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000},"description":"小额自动审批"},{"id":"pay","type":"http.request","name":"调支付系统","x":1600,"y":140,"category":"action","data":{"method":"POST","url":"https://pay.internal/api/payment/disburse","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":10000,"retries":3},"description":"调用支付系统"},{"id":"notify","type":"notify.feishu","name":"通知员工","x":1920,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书通知员工"},{"id":"archive","type":"http.request","name":"报销归档","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://archive.internal/api/reimburse","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}}, \"category\":\"{{trigger.category}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"报销记录归档"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"dedup","type":"default"},{"id":"e2","source":"dedup","target":"budgetCheck","type":"default"},{"id":"e3","source":"budgetCheck","target":"amount","label":"够","type":"condition"},{"id":"e4","source":"budgetCheck","target":"budgetAlert","label":"超支","type":"condition"},{"id":"e5","source":"amount","target":"approve","type":"default"},{"id":"e6","source":"amount","target":"leader","label":"中等","type":"condition"},{"id":"e7","source":"amount","target":"finance","label":"大额","type":"condition"},{"id":"e8","source":"approve","target":"pay","type":"default"},{"id":"e9","source":"leader","target":"pay","type":"default"},{"id":"e10","source":"finance","target":"pay","type":"default"},{"id":"e11","source":"pay","target":"notify","type":"default"},{"id":"e12","source":"notify","target":"archive","type":"default"},{"id":"e13","source":"archive","target":"end","type":"default"},{"id":"e14","source":"budgetAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"员工提交报销","x":0,"y":0,"category":"trigger","data":{"formId":"form_reimburse","fields":[{"key":"applicant","label":"申请人","type":"string","required":true},{"key":"amount","label":"金额","type":"number","required":true},{"key":"category","label":"类别","type":"select","options":["差旅","招待","办公"],"required":true},{"key":"reason","label":"事由","type":"text","required":true},{"key":"invoiceNo","label":"发票号","type":"string","required":true}]},"description":"员工报销表单"},{"id":"dedup","type":"code.transform","name":"查重校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const exists = (input.dups || []).some(d => d.invoiceNo === input.invoiceNo); const budgetLeft = (input.budget || 0) - (input.used || 0); return { exists, budgetLeft, amount: input.amount };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"查重并校验规则"},{"id":"budgetCheck","type":"condition.if","name":"预算够?","x":640,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"budgetAlert","type":"notify.feishu","name":"预算超支","x":640,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"部门预算不足告警财务"},{"id":"amount","type":"condition.if","name":"金额路由","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"leader","type":"http.request","name":"主管审批","x":1280,"y":-140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/reimburse/lead-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":2},"description":"主管审批"},{"id":"finance","type":"http.request","name":"财务终审","x":1280,"y":0,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/reimburse/finance-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}}, \"category\":\"{{trigger.category}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000,"retries":2},"description":"财务终审（大额）"},{"id":"approve","type":"http.request","name":"自动审批","x":1280,"y":140,"category":"action","data":{"method":"POST","url":"https://oa.internal/api/reimburse/auto-approve","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000},"description":"小额自动审批"},{"id":"pay","type":"http.request","name":"调支付系统","x":1600,"y":140,"category":"action","data":{"method":"POST","url":"https://pay.internal/api/payment/disburse","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":10000,"retries":3},"description":"调用支付系统"},{"id":"notify","type":"notify.feishu","name":"通知员工","x":1920,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"飞书通知员工"},{"id":"archive","type":"http.request","name":"报销归档","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://archive.internal/api/reimburse","headers":{"Content-Type":"application/json"},"body":"{ \"applicant\":\"{{trigger.applicant}}\", \"amount\":{{dedup.amount}}, \"category\":\"{{trigger.category}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"报销记录归档"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"dedup","type":"default"},{"id":"e2","source":"dedup","target":"budgetCheck","type":"default"},{"id":"e3","source":"budgetCheck","target":"amount","label":"够","type":"condition"},{"id":"e4","source":"budgetCheck","target":"budgetAlert","label":"超支","type":"condition"},{"id":"e5","source":"amount","target":"approve","type":"default"},{"id":"e6","source":"amount","target":"leader","label":"中等","type":"condition"},{"id":"e7","source":"amount","target":"finance","label":"大额","type":"condition"},{"id":"e8","source":"approve","target":"pay","type":"default"},{"id":"e9","source":"leader","target":"pay","type":"default"},{"id":"e10","source":"finance","target":"pay","type":"default"},{"id":"e11","source":"pay","target":"notify","type":"default"},{"id":"e12","source":"notify","target":"archive","type":"default"},{"id":"e13","source":"archive","target":"end","type":"default"},{"id":"e14","source":"budgetAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"员工提交报销","type":"trigger.form","cx":120,"cy":30,"w":240,"h":60},{"id":"dedup","name":"查重校验","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"budgetCheck","name":"预算够?","type":"condition.if","cx":760,"cy":30,"w":240,"h":60},{"id":"budgetAlert","name":"预算超支","type":"notify.feishu","cx":760,"cy":170,"w":240,"h":60},{"id":"amount","name":"金额路由","type":"condition.if","cx":1080,"cy":30,"w":240,"h":60},{"id":"leader","name":"主管审批","type":"http.request","cx":1400,"cy":-110,"w":240,"h":60},{"id":"finance","name":"财务终审","type":"http.request","cx":1400,"cy":30,"w":240,"h":60},{"id":"approve","name":"自动审批","type":"http.request","cx":1400,"cy":170,"w":240,"h":60},{"id":"pay","name":"调支付系统","type":"http.request","cx":1720,"cy":170,"w":240,"h":60},{"id":"notify","name":"通知员工","type":"notify.feishu","cx":2040,"cy":30,"w":240,"h":60},{"id":"archive","name":"报销归档","type":"http.request","cx":2040,"cy":-110,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2360,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"dedup"},{"id":"e2","source":"dedup","target":"budgetCheck"},{"id":"e3","source":"budgetCheck","target":"amount","label":"够"},{"id":"e4","source":"budgetCheck","target":"budgetAlert","label":"超支"},{"id":"e5","source":"amount","target":"approve"},{"id":"e6","source":"amount","target":"leader","label":"中等"},{"id":"e7","source":"amount","target":"finance","label":"大额"},{"id":"e8","source":"approve","target":"pay"},{"id":"e9","source":"leader","target":"pay"},{"id":"e10","source":"finance","target":"pay"},{"id":"e11","source":"pay","target":"notify"},{"id":"e12","source":"notify","target":"archive"},{"id":"e13","source":"archive","target":"end"},{"id":"e14","source":"budgetAlert","target":"end"}]}'::jsonb
+WHERE name = '报销审批';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 09:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 9 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每日早上 9 点扫描应收款"},{"id":"query","type":"http.request","name":"拉取应收款","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://erp.internal/api/ar/list","headers":{"Content-Type":"application/json"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":15000,"retries":3},"description":"从 ERP 拉取应收款列表"},{"id":"filter","type":"code.transform","name":"筛选逾期","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"const items = input.items || []; return { overdue: items.filter(i => i.daysOverdue > 0), upcoming: items.filter(i => i.daysToDue > 0 && i.daysToDue <= 3), normal: items.filter(i => i.daysToDue > 3) };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"筛选逾期 / 即将到期 / 正常"},{"id":"branch","type":"condition.if","name":"有逾期?","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"escalate","type":"notify.email","name":"抄送财务主管","x":1280,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"ar-lead@meowflow.com","subject":"【逾期应收款告警】共 {{filter.overdue.length}} 笔","body":"<pre>{{filter.overdue}}</pre>","cc":[]},"description":"把逾期客户抄送给财务主管"},{"id":"remind","type":"ai.llm","name":"生成催收文案","x":1280,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于即将到期客户生成礼貌的催收话术。"},"description":"生成个性化催收文案"},{"id":"send","type":"notify.feishu","name":"发送客户","x":1600,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通过飞书外发机器人送达客户"},{"id":"email","type":"notify.email","name":"抄送邮件","x":1600,"y":0,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"sales-followup@meowflow.com","subject":"【应收款提醒】即将到期 {{filter.upcoming.length}} 笔","body":"<pre>详情见飞书群通知</pre>","cc":[]},"description":"抄送邮件给销售跟单"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"query","type":"default"},{"id":"e2","source":"query","target":"filter","type":"default"},{"id":"e3","source":"filter","target":"branch","type":"default"},{"id":"e4","source":"branch","target":"escalate","label":"已逾期","type":"condition"},{"id":"e5","source":"branch","target":"remind","label":"即将到期","type":"condition"},{"id":"e6","source":"remind","target":"send","type":"default"},{"id":"e7","source":"remind","target":"email","type":"default"},{"id":"e8","source":"escalate","target":"end","type":"default"},{"id":"e9","source":"send","target":"end","type":"default"},{"id":"e10","source":"email","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 09:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 9 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每日早上 9 点扫描应收款"},{"id":"query","type":"http.request","name":"拉取应收款","x":320,"y":0,"category":"action","data":{"method":"GET","url":"https://erp.internal/api/ar/list","headers":{"Content-Type":"application/json"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":15000,"retries":3},"description":"从 ERP 拉取应收款列表"},{"id":"filter","type":"code.transform","name":"筛选逾期","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"const items = input.items || []; return { overdue: items.filter(i => i.daysOverdue > 0), upcoming: items.filter(i => i.daysToDue > 0 && i.daysToDue <= 3), normal: items.filter(i => i.daysToDue > 3) };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"筛选逾期 / 即将到期 / 正常"},{"id":"branch","type":"condition.if","name":"有逾期?","x":960,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"escalate","type":"notify.email","name":"抄送财务主管","x":1280,"y":-140,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"ar-lead@meowflow.com","subject":"【逾期应收款告警】共 {{filter.overdue.length}} 笔","body":"<pre>{{filter.overdue}}</pre>","cc":[]},"description":"把逾期客户抄送给财务主管"},{"id":"remind","type":"ai.llm","name":"生成催收文案","x":1280,"y":140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.4,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于即将到期客户生成礼貌的催收话术。"},"description":"生成个性化催收文案"},{"id":"send","type":"notify.feishu","name":"发送客户","x":1600,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"通过飞书外发机器人送达客户"},{"id":"email","type":"notify.email","name":"抄送邮件","x":1600,"y":0,"category":"action","data":{"host":"","port":465,"ssl":true,"username":"","password":"","from":"","to":"sales-followup@meowflow.com","subject":"【应收款提醒】即将到期 {{filter.upcoming.length}} 笔","body":"<pre>详情见飞书群通知</pre>","cc":[]},"description":"抄送邮件给销售跟单"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"query","type":"default"},{"id":"e2","source":"query","target":"filter","type":"default"},{"id":"e3","source":"filter","target":"branch","type":"default"},{"id":"e4","source":"branch","target":"escalate","label":"已逾期","type":"condition"},{"id":"e5","source":"branch","target":"remind","label":"即将到期","type":"condition"},{"id":"e6","source":"remind","target":"send","type":"default"},{"id":"e7","source":"remind","target":"email","type":"default"},{"id":"e8","source":"escalate","target":"end","type":"default"},{"id":"e9","source":"send","target":"end","type":"default"},{"id":"e10","source":"email","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"每日 09:00","type":"trigger.cron","cx":120,"cy":30,"w":240,"h":60},{"id":"query","name":"拉取应收款","type":"http.request","cx":440,"cy":30,"w":240,"h":60},{"id":"filter","name":"筛选逾期","type":"code.transform","cx":760,"cy":30,"w":240,"h":60},{"id":"branch","name":"有逾期?","type":"condition.if","cx":1080,"cy":30,"w":240,"h":60},{"id":"escalate","name":"抄送财务主管","type":"notify.email","cx":1400,"cy":-110,"w":240,"h":60},{"id":"remind","name":"生成催收文案","type":"ai.llm","cx":1400,"cy":170,"w":240,"h":60},{"id":"send","name":"发送客户","type":"notify.feishu","cx":1720,"cy":170,"w":240,"h":60},{"id":"email","name":"抄送邮件","type":"notify.email","cx":1720,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2040,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"query"},{"id":"e2","source":"query","target":"filter"},{"id":"e3","source":"filter","target":"branch"},{"id":"e4","source":"branch","target":"escalate","label":"已逾期"},{"id":"e5","source":"branch","target":"remind","label":"即将到期"},{"id":"e6","source":"remind","target":"send"},{"id":"e7","source":"remind","target":"email"},{"id":"e8","source":"escalate","target":"end"},{"id":"e9","source":"send","target":"end"},{"id":"e10","source":"email","target":"end"}]}'::jsonb
+WHERE name = '应收款提醒';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每小时 00 分","x":0,"y":0,"category":"trigger","data":{"cron":"0 * * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每小时整点同步"},{"id":"mode","type":"code.transform","name":"判断同步模式","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const hoursSinceLast = (Date.now() - (input.lastSync || 0)) / 3600_000; return { mode: hoursSinceLast > 24 ? \"full\" : \"incremental\", lastSync: input.lastSync };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"基于上次同步时间决定全量/增量"},{"id":"extract","type":"http.request","name":"拉取数据","x":640,"y":0,"category":"action","data":{"method":"GET","url":"https://source-db.internal/api/orders","headers":{"Content-Type":"application/json","X-Mode":"{{mode.mode}}"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":60000,"retries":3},"description":"支持全量或增量拉取"},{"id":"clean","type":"code.transform","name":"字段映射","x":960,"y":0,"category":"transform","data":{"language":"javascript","source":"return (input.items || []).map(i => ({ id: i.id, total: i.amount, date: i.createdAt, customer: i.customerId, status: i.status }));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"字段映射与清洗"},{"id":"dedup","type":"code.transform","name":"去重 / 主键合并","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); return (input || []).filter(x => !seen.has(x.id) && seen.add(x.id));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"按主键去重"},{"id":"branch","type":"condition.if","name":"批量 vs 流式","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"batch","type":"http.request","name":"批量写入数仓","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://dwh.internal/api/load","headers":{"Content-Type":"application/json"},"body":"{ \"rows\": {{dedup}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":120000},"description":"大批量走数仓"},{"id":"stream","type":"http.request","name":"写入 Kafka","x":1920,"y":140,"category":"action","data":{"method":"POST","url":"https://kafka.internal/api/produce","headers":{"Content-Type":"application/json"},"body":"{ \"topic\":\"orders-stream\", \"rows\": {{dedup}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":30000},"description":"小批量走流式"},{"id":"retry","type":"code.transform","name":"指数退避","x":1920,"y":0,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: Math.min(30000, 1000 * Math.pow(2, input.attempt || 1)), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避"},{"id":"notify","type":"notify.feishu","name":"完成通知","x":2240,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"完成通知"},{"id":"alert","type":"notify.feishu","name":"失败告警","x":2240,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":true,"msgType":"text"},"description":"同步失败告警运维"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"mode","type":"default"},{"id":"e2","source":"mode","target":"extract","type":"default"},{"id":"e3","source":"extract","target":"clean","type":"default"},{"id":"e4","source":"clean","target":"dedup","type":"default"},{"id":"e5","source":"dedup","target":"branch","type":"default"},{"id":"e6","source":"branch","target":"batch","label":"批量","type":"condition"},{"id":"e7","source":"branch","target":"stream","label":"流式","type":"condition"},{"id":"e8","source":"batch","target":"retry","label":"失败","type":"loop"},{"id":"e9","source":"stream","target":"retry","label":"失败","type":"loop"},{"id":"e10","source":"retry","target":"alert","label":"重试耗尽","type":"error"},{"id":"e11","source":"retry","target":"notify","type":"default"},{"id":"e12","source":"batch","target":"notify","type":"default"},{"id":"e13","source":"stream","target":"notify","type":"default"},{"id":"e14","source":"notify","target":"end","type":"default"},{"id":"e15","source":"alert","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每小时 00 分","x":0,"y":0,"category":"trigger","data":{"cron":"0 * * * *","timezone":"Asia/Shanghai","enabled":true},"description":"每小时整点同步"},{"id":"mode","type":"code.transform","name":"判断同步模式","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const hoursSinceLast = (Date.now() - (input.lastSync || 0)) / 3600_000; return { mode: hoursSinceLast > 24 ? \"full\" : \"incremental\", lastSync: input.lastSync };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"基于上次同步时间决定全量/增量"},{"id":"extract","type":"http.request","name":"拉取数据","x":640,"y":0,"category":"action","data":{"method":"GET","url":"https://source-db.internal/api/orders","headers":{"Content-Type":"application/json","X-Mode":"{{mode.mode}}"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":60000,"retries":3},"description":"支持全量或增量拉取"},{"id":"clean","type":"code.transform","name":"字段映射","x":960,"y":0,"category":"transform","data":{"language":"javascript","source":"return (input.items || []).map(i => ({ id: i.id, total: i.amount, date: i.createdAt, customer: i.customerId, status: i.status }));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"字段映射与清洗"},{"id":"dedup","type":"code.transform","name":"去重 / 主键合并","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); return (input || []).filter(x => !seen.has(x.id) && seen.add(x.id));","description":"使用 JSONata / JS 表达式做字段映射"},"description":"按主键去重"},{"id":"branch","type":"condition.if","name":"批量 vs 流式","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"batch","type":"http.request","name":"批量写入数仓","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://dwh.internal/api/load","headers":{"Content-Type":"application/json"},"body":"{ \"rows\": {{dedup}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":120000},"description":"大批量走数仓"},{"id":"stream","type":"http.request","name":"写入 Kafka","x":1920,"y":140,"category":"action","data":{"method":"POST","url":"https://kafka.internal/api/produce","headers":{"Content-Type":"application/json"},"body":"{ \"topic\":\"orders-stream\", \"rows\": {{dedup}} }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":30000},"description":"小批量走流式"},{"id":"retry","type":"code.transform","name":"指数退避","x":1920,"y":0,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: Math.min(30000, 1000 * Math.pow(2, input.attempt || 1)), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避"},{"id":"notify","type":"notify.feishu","name":"完成通知","x":2240,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"rich"},"description":"完成通知"},{"id":"alert","type":"notify.feishu","name":"失败告警","x":2240,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":true,"msgType":"text"},"description":"同步失败告警运维"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"mode","type":"default"},{"id":"e2","source":"mode","target":"extract","type":"default"},{"id":"e3","source":"extract","target":"clean","type":"default"},{"id":"e4","source":"clean","target":"dedup","type":"default"},{"id":"e5","source":"dedup","target":"branch","type":"default"},{"id":"e6","source":"branch","target":"batch","label":"批量","type":"condition"},{"id":"e7","source":"branch","target":"stream","label":"流式","type":"condition"},{"id":"e8","source":"batch","target":"retry","label":"失败","type":"loop"},{"id":"e9","source":"stream","target":"retry","label":"失败","type":"loop"},{"id":"e10","source":"retry","target":"alert","label":"重试耗尽","type":"error"},{"id":"e11","source":"retry","target":"notify","type":"default"},{"id":"e12","source":"batch","target":"notify","type":"default"},{"id":"e13","source":"stream","target":"notify","type":"default"},{"id":"e14","source":"notify","target":"end","type":"default"},{"id":"e15","source":"alert","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"每小时 00 分","type":"trigger.cron","cx":120,"cy":30,"w":240,"h":60},{"id":"mode","name":"判断同步模式","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"extract","name":"拉取数据","type":"http.request","cx":760,"cy":30,"w":240,"h":60},{"id":"clean","name":"字段映射","type":"code.transform","cx":1080,"cy":30,"w":240,"h":60},{"id":"dedup","name":"去重 / 主键合并","type":"code.transform","cx":1400,"cy":30,"w":240,"h":60},{"id":"branch","name":"批量 vs 流式","type":"condition.if","cx":1720,"cy":30,"w":240,"h":60},{"id":"batch","name":"批量写入数仓","type":"http.request","cx":2040,"cy":-110,"w":240,"h":60},{"id":"stream","name":"写入 Kafka","type":"http.request","cx":2040,"cy":170,"w":240,"h":60},{"id":"retry","name":"指数退避","type":"code.transform","cx":2040,"cy":30,"w":240,"h":60},{"id":"notify","name":"完成通知","type":"notify.feishu","cx":2360,"cy":30,"w":240,"h":60},{"id":"alert","name":"失败告警","type":"notify.feishu","cx":2360,"cy":170,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2680,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"mode"},{"id":"e2","source":"mode","target":"extract"},{"id":"e3","source":"extract","target":"clean"},{"id":"e4","source":"clean","target":"dedup"},{"id":"e5","source":"dedup","target":"branch"},{"id":"e6","source":"branch","target":"batch","label":"批量"},{"id":"e7","source":"branch","target":"stream","label":"流式"},{"id":"e8","source":"batch","target":"retry","label":"失败"},{"id":"e9","source":"stream","target":"retry","label":"失败"},{"id":"e10","source":"retry","target":"alert","label":"重试耗尽"},{"id":"e11","source":"retry","target":"notify"},{"id":"e12","source":"batch","target":"notify"},{"id":"e13","source":"stream","target":"notify"},{"id":"e14","source":"notify","target":"end"},{"id":"e15","source":"alert","target":"end"}]}'::jsonb
+WHERE name = '数据同步任务';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"Webhook 入口","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/generic","authToken":"","timeout":10000},"description":"通用 webhook 接收"},{"id":"verify","type":"code.transform","name":"签名校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const valid = input.headers[\"x-signature\"] === input.expected && Math.abs(Date.now() - +input.headers[\"x-timestamp\"]) < 60_000; return { valid };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"使用 HMAC 校验签名"},{"id":"rateLimit","type":"code.transform","name":"限流检查","x":320,"y":140,"category":"transform","data":{"language":"javascript","source":"const count = (input.recentCount || 0); return { exceeded: count > 100, count };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"检查调用方是否超过速率限制"},{"id":"branch","type":"condition.if","name":"签名有效?","x":640,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"rateBranch","type":"condition.if","name":"限流?","x":640,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"handle","type":"code.transform","name":"执行业务逻辑","x":960,"y":-140,"category":"transform","data":{"language":"javascript","source":"return { ok: true, processedAt: Date.now(), payload: input.body };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"处理上游业务"},{"id":"reject","type":"notify.feishu","name":"签名失败告警","x":960,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"签名失败告警"},{"id":"rateAlert","type":"notify.feishu","name":"限流告警","x":960,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"调用方超限告警"},{"id":"respond","type":"http.request","name":"回调外部","x":1280,"y":-140,"category":"action","data":{"method":"POST","url":"https://callback.example.com/webhook","headers":{"Content-Type":"application/json"},"body":"{ \"id\":\"{{trigger.id}}\", \"status\":\"ok\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000},"description":"回调外部系统"},{"id":"retry","type":"code.transform","name":"重试退避","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: 500 * Math.pow(2, input.attempt || 1), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"回调失败时退避重试"},{"id":"log","type":"http.request","name":"审计日志","x":1600,"y":-140,"category":"action","data":{"method":"POST","url":"https://audit.internal/api/log","headers":{"Content-Type":"application/json"},"body":"{ \"trigger\":\"{{trigger.id}}\", \"status\":\"ok\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"写入审计日志"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"verify","type":"default"},{"id":"e2","source":"trigger","target":"rateLimit","type":"default"},{"id":"e3","source":"verify","target":"branch","type":"default"},{"id":"e4","source":"branch","target":"handle","label":"通过","type":"condition"},{"id":"e5","source":"branch","target":"reject","label":"失败","type":"condition"},{"id":"e6","source":"rateLimit","target":"rateBranch","type":"default"},{"id":"e7","source":"rateBranch","target":"handle","label":"未超限","type":"condition"},{"id":"e8","source":"rateBranch","target":"rateAlert","label":"超限","type":"condition"},{"id":"e9","source":"handle","target":"respond","type":"default"},{"id":"e10","source":"respond","target":"retry","label":"失败","type":"loop"},{"id":"e11","source":"retry","target":"reject","label":"回调失败","type":"error"},{"id":"e12","source":"respond","target":"log","type":"default"},{"id":"e13","source":"log","target":"end","type":"default"},{"id":"e14","source":"reject","target":"end","type":"default"},{"id":"e15","source":"rateAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.webhook","name":"Webhook 入口","x":0,"y":0,"category":"trigger","data":{"method":"POST","path":"/hooks/generic","authToken":"","timeout":10000},"description":"通用 webhook 接收"},{"id":"verify","type":"code.transform","name":"签名校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const valid = input.headers[\"x-signature\"] === input.expected && Math.abs(Date.now() - +input.headers[\"x-timestamp\"]) < 60_000; return { valid };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"使用 HMAC 校验签名"},{"id":"rateLimit","type":"code.transform","name":"限流检查","x":320,"y":140,"category":"transform","data":{"language":"javascript","source":"const count = (input.recentCount || 0); return { exceeded: count > 100, count };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"检查调用方是否超过速率限制"},{"id":"branch","type":"condition.if","name":"签名有效?","x":640,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"rateBranch","type":"condition.if","name":"限流?","x":640,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"handle","type":"code.transform","name":"执行业务逻辑","x":960,"y":-140,"category":"transform","data":{"language":"javascript","source":"return { ok: true, processedAt: Date.now(), payload: input.body };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"处理上游业务"},{"id":"reject","type":"notify.feishu","name":"签名失败告警","x":960,"y":0,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"签名失败告警"},{"id":"rateAlert","type":"notify.feishu","name":"限流告警","x":960,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":false,"msgType":"text"},"description":"调用方超限告警"},{"id":"respond","type":"http.request","name":"回调外部","x":1280,"y":-140,"category":"action","data":{"method":"POST","url":"https://callback.example.com/webhook","headers":{"Content-Type":"application/json"},"body":"{ \"id\":\"{{trigger.id}}\", \"status\":\"ok\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":5000},"description":"回调外部系统"},{"id":"retry","type":"code.transform","name":"重试退避","x":1280,"y":0,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: 500 * Math.pow(2, input.attempt || 1), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"回调失败时退避重试"},{"id":"log","type":"http.request","name":"审计日志","x":1600,"y":-140,"category":"action","data":{"method":"POST","url":"https://audit.internal/api/log","headers":{"Content-Type":"application/json"},"body":"{ \"trigger\":\"{{trigger.id}}\", \"status\":\"ok\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"写入审计日志"},{"id":"end","type":"end.aggregator","name":"结束","x":1920,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"verify","type":"default"},{"id":"e2","source":"trigger","target":"rateLimit","type":"default"},{"id":"e3","source":"verify","target":"branch","type":"default"},{"id":"e4","source":"branch","target":"handle","label":"通过","type":"condition"},{"id":"e5","source":"branch","target":"reject","label":"失败","type":"condition"},{"id":"e6","source":"rateLimit","target":"rateBranch","type":"default"},{"id":"e7","source":"rateBranch","target":"handle","label":"未超限","type":"condition"},{"id":"e8","source":"rateBranch","target":"rateAlert","label":"超限","type":"condition"},{"id":"e9","source":"handle","target":"respond","type":"default"},{"id":"e10","source":"respond","target":"retry","label":"失败","type":"loop"},{"id":"e11","source":"retry","target":"reject","label":"回调失败","type":"error"},{"id":"e12","source":"respond","target":"log","type":"default"},{"id":"e13","source":"log","target":"end","type":"default"},{"id":"e14","source":"reject","target":"end","type":"default"},{"id":"e15","source":"rateAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"Webhook 入口","type":"trigger.webhook","cx":120,"cy":30,"w":240,"h":60},{"id":"verify","name":"签名校验","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"rateLimit","name":"限流检查","type":"code.transform","cx":440,"cy":170,"w":240,"h":60},{"id":"branch","name":"签名有效?","type":"condition.if","cx":760,"cy":30,"w":240,"h":60},{"id":"rateBranch","name":"限流?","type":"condition.if","cx":760,"cy":170,"w":240,"h":60},{"id":"handle","name":"执行业务逻辑","type":"code.transform","cx":1080,"cy":-110,"w":240,"h":60},{"id":"reject","name":"签名失败告警","type":"notify.feishu","cx":1080,"cy":30,"w":240,"h":60},{"id":"rateAlert","name":"限流告警","type":"notify.feishu","cx":1080,"cy":170,"w":240,"h":60},{"id":"respond","name":"回调外部","type":"http.request","cx":1400,"cy":-110,"w":240,"h":60},{"id":"retry","name":"重试退避","type":"code.transform","cx":1400,"cy":30,"w":240,"h":60},{"id":"log","name":"审计日志","type":"http.request","cx":1720,"cy":-110,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2040,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"verify"},{"id":"e2","source":"trigger","target":"rateLimit"},{"id":"e3","source":"verify","target":"branch"},{"id":"e4","source":"branch","target":"handle","label":"通过"},{"id":"e5","source":"branch","target":"reject","label":"失败"},{"id":"e6","source":"rateLimit","target":"rateBranch"},{"id":"e7","source":"rateBranch","target":"handle","label":"未超限"},{"id":"e8","source":"rateBranch","target":"rateAlert","label":"超限"},{"id":"e9","source":"handle","target":"respond"},{"id":"e10","source":"respond","target":"retry","label":"失败"},{"id":"e11","source":"retry","target":"reject","label":"回调失败"},{"id":"e12","source":"respond","target":"log"},{"id":"e13","source":"log","target":"end"},{"id":"e14","source":"reject","target":"end"},{"id":"e15","source":"rateAlert","target":"end"}]}'::jsonb
+WHERE name = '通用 Webhook 接入';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 02:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 2 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"凌晨 2 点备份"},{"id":"check","type":"code.transform","name":"检查磁盘空间","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"return { ok: (input.diskFree || 0) > 10 * 1024 * 1024 * 1024, diskFree: input.diskFree };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"备份前检查磁盘剩余空间"},{"id":"diskBranch","type":"condition.if","name":"磁盘够?","x":320,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"diskAlert","type":"notify.feishu","name":"磁盘告警","x":320,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":true,"msgType":"text"},"description":"磁盘不足告警运维"},{"id":"dump","type":"http.request","name":"导出数据库","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://db.internal/api/dump","headers":{"Content-Type":"application/json"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":1800000,"retries":1},"description":"导出数据库快照"},{"id":"compress","type":"code.transform","name":"压缩 / 加密","x":960,"y":0,"category":"transform","data":{"language":"javascript","source":"return { file: input.file, alg: \"aes-256-gcm\", size: input.file.length, checksum: input.checksum };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"压缩 + AES 加密"},{"id":"upload","type":"http.request","name":"上传 OSS","x":1280,"y":0,"category":"action","data":{"method":"PUT","url":"https://oss.internal/buckets/db-backup/{{trigger.date}}/dump.gz.enc","headers":{"Content-Type":"application/octet-stream"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":300000},"description":"上传对象存储"},{"id":"branch","type":"condition.if","name":"上传成功?","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"retry","type":"code.transform","name":"退避重试","x":1600,"y":140,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: 5000 * Math.pow(2, input.attempt || 1), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避"},{"id":"log","type":"code.transform","name":"写入备份日志","x":1920,"y":-140,"category":"transform","data":{"language":"javascript","source":"return { ok: true, size: input.size, checksum: input.checksum, when: Date.now() };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"记录备份日志（含 checksum）"},{"id":"audit","type":"http.request","name":"记录审计","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://audit.internal/api/backup","headers":{"Content-Type":"application/json"},"body":"{ \"date\":\"{{trigger.date}}\", \"size\":{{log.size}}, \"checksum\":\"{{log.checksum}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"写审计系统"},{"id":"alert","type":"notify.feishu","name":"告警运维","x":1920,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":true,"msgType":"text"},"description":"备份失败告警"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"check","type":"default"},{"id":"e2","source":"check","target":"diskBranch","type":"default"},{"id":"e3","source":"diskBranch","target":"dump","label":"够","type":"condition"},{"id":"e4","source":"diskBranch","target":"diskAlert","label":"不足","type":"condition"},{"id":"e5","source":"dump","target":"compress","type":"default"},{"id":"e6","source":"compress","target":"upload","type":"default"},{"id":"e7","source":"upload","target":"branch","type":"default"},{"id":"e8","source":"branch","target":"log","label":"成功","type":"condition"},{"id":"e9","source":"branch","target":"alert","label":"失败","type":"condition"},{"id":"e10","source":"upload","target":"retry","label":"失败","type":"loop"},{"id":"e11","source":"retry","target":"upload","type":"default"},{"id":"e12","source":"log","target":"audit","type":"default"},{"id":"e13","source":"audit","target":"end","type":"default"},{"id":"e14","source":"alert","target":"end","type":"default"},{"id":"e15","source":"diskAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.cron","name":"每日 02:00","x":0,"y":0,"category":"trigger","data":{"cron":"0 2 * * *","timezone":"Asia/Shanghai","enabled":true},"description":"凌晨 2 点备份"},{"id":"check","type":"code.transform","name":"检查磁盘空间","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"return { ok: (input.diskFree || 0) > 10 * 1024 * 1024 * 1024, diskFree: input.diskFree };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"备份前检查磁盘剩余空间"},{"id":"diskBranch","type":"condition.if","name":"磁盘够?","x":320,"y":140,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"diskAlert","type":"notify.feishu","name":"磁盘告警","x":320,"y":-140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":true,"msgType":"text"},"description":"磁盘不足告警运维"},{"id":"dump","type":"http.request","name":"导出数据库","x":640,"y":0,"category":"action","data":{"method":"POST","url":"https://db.internal/api/dump","headers":{"Content-Type":"application/json"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":1800000,"retries":1},"description":"导出数据库快照"},{"id":"compress","type":"code.transform","name":"压缩 / 加密","x":960,"y":0,"category":"transform","data":{"language":"javascript","source":"return { file: input.file, alg: \"aes-256-gcm\", size: input.file.length, checksum: input.checksum };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"压缩 + AES 加密"},{"id":"upload","type":"http.request","name":"上传 OSS","x":1280,"y":0,"category":"action","data":{"method":"PUT","url":"https://oss.internal/buckets/db-backup/{{trigger.date}}/dump.gz.enc","headers":{"Content-Type":"application/octet-stream"},"body":"","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json","timeoutMs":300000},"description":"上传对象存储"},{"id":"branch","type":"condition.if","name":"上传成功?","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"retry","type":"code.transform","name":"退避重试","x":1600,"y":140,"category":"transform","data":{"language":"javascript","source":"return { sleepMs: 5000 * Math.pow(2, input.attempt || 1), attempt: (input.attempt || 1) + 1 };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"失败时指数退避"},{"id":"log","type":"code.transform","name":"写入备份日志","x":1920,"y":-140,"category":"transform","data":{"language":"javascript","source":"return { ok: true, size: input.size, checksum: input.checksum, when: Date.now() };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"记录备份日志（含 checksum）"},{"id":"audit","type":"http.request","name":"记录审计","x":1920,"y":0,"category":"action","data":{"method":"POST","url":"https://audit.internal/api/backup","headers":{"Content-Type":"application/json"},"body":"{ \"date\":\"{{trigger.date}}\", \"size\":{{log.size}}, \"checksum\":\"{{log.checksum}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"写审计系统"},{"id":"alert","type":"notify.feishu","name":"告警运维","x":1920,"y":140,"category":"action","data":{"webhook":"{{NOTIFY_WEBHOOK}}","secret":"","atMobiles":[],"atAll":true,"msgType":"text"},"description":"备份失败告警"},{"id":"end","type":"end.aggregator","name":"结束","x":2240,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"check","type":"default"},{"id":"e2","source":"check","target":"diskBranch","type":"default"},{"id":"e3","source":"diskBranch","target":"dump","label":"够","type":"condition"},{"id":"e4","source":"diskBranch","target":"diskAlert","label":"不足","type":"condition"},{"id":"e5","source":"dump","target":"compress","type":"default"},{"id":"e6","source":"compress","target":"upload","type":"default"},{"id":"e7","source":"upload","target":"branch","type":"default"},{"id":"e8","source":"branch","target":"log","label":"成功","type":"condition"},{"id":"e9","source":"branch","target":"alert","label":"失败","type":"condition"},{"id":"e10","source":"upload","target":"retry","label":"失败","type":"loop"},{"id":"e11","source":"retry","target":"upload","type":"default"},{"id":"e12","source":"log","target":"audit","type":"default"},{"id":"e13","source":"audit","target":"end","type":"default"},{"id":"e14","source":"alert","target":"end","type":"default"},{"id":"e15","source":"diskAlert","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"每日 02:00","type":"trigger.cron","cx":120,"cy":30,"w":240,"h":60},{"id":"check","name":"检查磁盘空间","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"diskBranch","name":"磁盘够?","type":"condition.if","cx":440,"cy":170,"w":240,"h":60},{"id":"diskAlert","name":"磁盘告警","type":"notify.feishu","cx":440,"cy":-110,"w":240,"h":60},{"id":"dump","name":"导出数据库","type":"http.request","cx":760,"cy":30,"w":240,"h":60},{"id":"compress","name":"压缩 / 加密","type":"code.transform","cx":1080,"cy":30,"w":240,"h":60},{"id":"upload","name":"上传 OSS","type":"http.request","cx":1400,"cy":30,"w":240,"h":60},{"id":"branch","name":"上传成功?","type":"condition.if","cx":1720,"cy":30,"w":240,"h":60},{"id":"retry","name":"退避重试","type":"code.transform","cx":1720,"cy":170,"w":240,"h":60},{"id":"log","name":"写入备份日志","type":"code.transform","cx":2040,"cy":-110,"w":240,"h":60},{"id":"audit","name":"记录审计","type":"http.request","cx":2040,"cy":30,"w":240,"h":60},{"id":"alert","name":"告警运维","type":"notify.feishu","cx":2040,"cy":170,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2360,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"check"},{"id":"e2","source":"check","target":"diskBranch"},{"id":"e3","source":"diskBranch","target":"dump","label":"够"},{"id":"e4","source":"diskBranch","target":"diskAlert","label":"不足"},{"id":"e5","source":"dump","target":"compress"},{"id":"e6","source":"compress","target":"upload"},{"id":"e7","source":"upload","target":"branch"},{"id":"e8","source":"branch","target":"log","label":"成功"},{"id":"e9","source":"branch","target":"alert","label":"失败"},{"id":"e10","source":"upload","target":"retry","label":"失败"},{"id":"e11","source":"retry","target":"upload"},{"id":"e12","source":"log","target":"audit"},{"id":"e13","source":"audit","target":"end"},{"id":"e14","source":"alert","target":"end"},{"id":"e15","source":"diskAlert","target":"end"}]}'::jsonb
+WHERE name = '定时备份';
+
+UPDATE mf_tpl_template
+SET definition = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"上传原始数据","x":0,"y":0,"category":"trigger","data":{"formId":"form_data_clean","fields":[{"key":"fileUrl","label":"文件 URL","type":"string","required":true},{"key":"format","label":"格式","type":"select","options":["csv","excel","json"],"required":true},{"key":"ruleProfile","label":"规则集","type":"select","options":["默认","严格","宽松"],"required":false}]},"description":"上传原始数据文件"},{"id":"validate","type":"code.transform","name":"文件校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ok = !!input.fileUrl && (input.size || 0) < 100*1024*1024; return { ok, fileUrl: input.fileUrl, format: input.format, ruleProfile: input.ruleProfile || \"默认\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验文件存在与大小"},{"id":"parse","type":"code.transform","name":"解析 CSV / Excel","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"return { rows: input.rows || [], cols: input.cols || [], total: (input.rows || []).length };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"解析为通用结构"},{"id":"clean","type":"ai.llm","name":"字段归一化","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"对每行数据做字段归一化，并标注缺失/异常。"},"description":"归一化字段并标注异常值"},{"id":"branch","type":"condition.if","name":"数据可补?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"fill","type":"ai.llm","name":"AI 补全缺失","x":1600,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于上下文补全缺失字段值。"},"description":"智能补全缺失字段"},{"id":"fillLoop","type":"condition.if","name":"还有缺失?","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"reject","type":"code.transform","name":"进入异常池","x":1600,"y":140,"category":"transform","data":{"language":"javascript","source":"return { rejected: input.bad || [] };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"无法补全的进入异常池"},{"id":"dedup","type":"code.transform","name":"去重","x":1920,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); const rows = input.filled || input.rows; const out = []; for (const r of rows) { const k = r.id || r.email || JSON.stringify(r); if (!seen.has(k)) { seen.add(k); out.push(r); } } return out;","description":"使用 JSONata / JS 表达式做字段映射"},"description":"基于主键去重"},{"id":"export","type":"http.request","name":"导出结构化数据","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://dwh.internal/api/clean-data","headers":{"Content-Type":"application/json"},"body":"{ \"rows\":{{dedup}}, \"format\":\"{{trigger.format}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"导出到目标存储"},{"id":"auditLog","type":"http.request","name":"审计日志","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://audit.internal/api/lineage","headers":{"Content-Type":"application/json"},"body":"{ \"sourceFile\":\"{{trigger.fileUrl}}\", \"rows\":{{dedup.length}}, \"ruleProfile\":\"{{trigger.ruleProfile}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"写入数据血缘审计"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"parse","label":"通过","type":"condition"},{"id":"e3","source":"validate","target":"end","label":"文件异常","type":"error"},{"id":"e4","source":"parse","target":"clean","type":"default"},{"id":"e5","source":"clean","target":"branch","type":"default"},{"id":"e6","source":"branch","target":"fill","label":"可补","type":"condition"},{"id":"e7","source":"branch","target":"export","label":"完整","type":"condition"},{"id":"e8","source":"fill","target":"fillLoop","type":"default"},{"id":"e9","source":"fillLoop","target":"export","label":"全部补齐","type":"condition"},{"id":"e10","source":"fillLoop","target":"reject","label":"仍有缺失","type":"condition"},{"id":"e11","source":"fill","target":"dedup","type":"default"},{"id":"e12","source":"reject","target":"dedup","type":"default"},{"id":"e13","source":"dedup","target":"export","type":"default"},{"id":"e14","source":"export","target":"auditLog","type":"default"},{"id":"e15","source":"auditLog","target":"end","type":"default"}]}'::jsonb,
+    workflow_json = '{"version":"v1","nodes":[{"id":"trigger","type":"trigger.form","name":"上传原始数据","x":0,"y":0,"category":"trigger","data":{"formId":"form_data_clean","fields":[{"key":"fileUrl","label":"文件 URL","type":"string","required":true},{"key":"format","label":"格式","type":"select","options":["csv","excel","json"],"required":true},{"key":"ruleProfile","label":"规则集","type":"select","options":["默认","严格","宽松"],"required":false}]},"description":"上传原始数据文件"},{"id":"validate","type":"code.transform","name":"文件校验","x":320,"y":0,"category":"transform","data":{"language":"javascript","source":"const ok = !!input.fileUrl && (input.size || 0) < 100*1024*1024; return { ok, fileUrl: input.fileUrl, format: input.format, ruleProfile: input.ruleProfile || \"默认\" };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"校验文件存在与大小"},{"id":"parse","type":"code.transform","name":"解析 CSV / Excel","x":640,"y":0,"category":"transform","data":{"language":"javascript","source":"return { rows: input.rows || [], cols: input.cols || [], total: (input.rows || []).length };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"解析为通用结构"},{"id":"clean","type":"ai.llm","name":"字段归一化","x":960,"y":0,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.1,"maxTokens":2000,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"对每行数据做字段归一化，并标注缺失/异常。"},"description":"归一化字段并标注异常值"},{"id":"branch","type":"condition.if","name":"数据可补?","x":1280,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"fill","type":"ai.llm","name":"AI 补全缺失","x":1600,"y":-140,"category":"ai","data":{"model":"gpt-4o-mini","temperature":0.3,"maxTokens":1024,"systemPrompt":"你是喵流工作流的助手，请根据用户输入友好、专业地回答。","prompt":"基于上下文补全缺失字段值。"},"description":"智能补全缺失字段"},{"id":"fillLoop","type":"condition.if","name":"还有缺失?","x":1600,"y":0,"category":"control","data":{"expression":"{{input.score}} >= 80","trueNext":"true","falseNext":"false"}},{"id":"reject","type":"code.transform","name":"进入异常池","x":1600,"y":140,"category":"transform","data":{"language":"javascript","source":"return { rejected: input.bad || [] };","description":"使用 JSONata / JS 表达式做字段映射"},"description":"无法补全的进入异常池"},{"id":"dedup","type":"code.transform","name":"去重","x":1920,"y":0,"category":"transform","data":{"language":"javascript","source":"const seen = new Set(); const rows = input.filled || input.rows; const out = []; for (const r of rows) { const k = r.id || r.email || JSON.stringify(r); if (!seen.has(k)) { seen.add(k); out.push(r); } } return out;","description":"使用 JSONata / JS 表达式做字段映射"},"description":"基于主键去重"},{"id":"export","type":"http.request","name":"导出结构化数据","x":1920,"y":-140,"category":"action","data":{"method":"POST","url":"https://dwh.internal/api/clean-data","headers":{"Content-Type":"application/json"},"body":"{ \"rows\":{{dedup}}, \"format\":\"{{trigger.format}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"导出到目标存储"},{"id":"auditLog","type":"http.request","name":"审计日志","x":2240,"y":0,"category":"action","data":{"method":"POST","url":"https://audit.internal/api/lineage","headers":{"Content-Type":"application/json"},"body":"{ \"sourceFile\":\"{{trigger.fileUrl}}\", \"rows\":{{dedup.length}}, \"ruleProfile\":\"{{trigger.ruleProfile}}\" }","timeout":10000,"retryTimes":1,"retryOnFail":true,"auth":{"type":"none"},"bodyType":"json"},"description":"写入数据血缘审计"},{"id":"end","type":"end.aggregator","name":"结束","x":2560,"y":0,"category":"end","data":{"outputMode":"return_last"}}],"edges":[{"id":"e1","source":"trigger","target":"validate","type":"default"},{"id":"e2","source":"validate","target":"parse","label":"通过","type":"condition"},{"id":"e3","source":"validate","target":"end","label":"文件异常","type":"error"},{"id":"e4","source":"parse","target":"clean","type":"default"},{"id":"e5","source":"clean","target":"branch","type":"default"},{"id":"e6","source":"branch","target":"fill","label":"可补","type":"condition"},{"id":"e7","source":"branch","target":"export","label":"完整","type":"condition"},{"id":"e8","source":"fill","target":"fillLoop","type":"default"},{"id":"e9","source":"fillLoop","target":"export","label":"全部补齐","type":"condition"},{"id":"e10","source":"fillLoop","target":"reject","label":"仍有缺失","type":"condition"},{"id":"e11","source":"fill","target":"dedup","type":"default"},{"id":"e12","source":"reject","target":"dedup","type":"default"},{"id":"e13","source":"dedup","target":"export","type":"default"},{"id":"e14","source":"export","target":"auditLog","type":"default"},{"id":"e15","source":"auditLog","target":"end","type":"default"}]}'::jsonb,
+    workflow_graph = '{"nodes":[{"id":"trigger","name":"上传原始数据","type":"trigger.form","cx":120,"cy":30,"w":240,"h":60},{"id":"validate","name":"文件校验","type":"code.transform","cx":440,"cy":30,"w":240,"h":60},{"id":"parse","name":"解析 CSV / Excel","type":"code.transform","cx":760,"cy":30,"w":240,"h":60},{"id":"clean","name":"字段归一化","type":"ai.llm","cx":1080,"cy":30,"w":240,"h":60},{"id":"branch","name":"数据可补?","type":"condition.if","cx":1400,"cy":30,"w":240,"h":60},{"id":"fill","name":"AI 补全缺失","type":"ai.llm","cx":1720,"cy":-110,"w":240,"h":60},{"id":"fillLoop","name":"还有缺失?","type":"condition.if","cx":1720,"cy":30,"w":240,"h":60},{"id":"reject","name":"进入异常池","type":"code.transform","cx":1720,"cy":170,"w":240,"h":60},{"id":"dedup","name":"去重","type":"code.transform","cx":2040,"cy":30,"w":240,"h":60},{"id":"export","name":"导出结构化数据","type":"http.request","cx":2040,"cy":-110,"w":240,"h":60},{"id":"auditLog","name":"审计日志","type":"http.request","cx":2360,"cy":30,"w":240,"h":60},{"id":"end","name":"结束","type":"end.aggregator","cx":2680,"cy":30,"w":240,"h":60}],"edges":[{"id":"e1","source":"trigger","target":"validate"},{"id":"e2","source":"validate","target":"parse","label":"通过"},{"id":"e3","source":"validate","target":"end","label":"文件异常"},{"id":"e4","source":"parse","target":"clean"},{"id":"e5","source":"clean","target":"branch"},{"id":"e6","source":"branch","target":"fill","label":"可补"},{"id":"e7","source":"branch","target":"export","label":"完整"},{"id":"e8","source":"fill","target":"fillLoop"},{"id":"e9","source":"fillLoop","target":"export","label":"全部补齐"},{"id":"e10","source":"fillLoop","target":"reject","label":"仍有缺失"},{"id":"e11","source":"fill","target":"dedup"},{"id":"e12","source":"reject","target":"dedup"},{"id":"e13","source":"dedup","target":"export"},{"id":"e14","source":"export","target":"auditLog"},{"id":"e15","source":"auditLog","target":"end"}]}'::jsonb
+WHERE name = '数据清洗转换';
+
+
+

@@ -1,0 +1,45 @@
+# meowflow-template 集成测试配置 (真实环境)
+# 使用方式: @ActiveProfiles("integration")
+# 需要: PostgreSQL + Redis 已启动
+
+spring:
+  datasource:
+    # 真实 PostgreSQL (meowflow 数据库)
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:meowflow}
+    username: ${POSTGRES_USER:meowflow}
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: false
+    locations: classpath:db/migration
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+# 不再 mock 外部服务
+meowflow:
+  ai:
+    mock: false
+  notification:
+    mock: false
+  mcp:
+    mock: false
+
+logging:
+  level:
+    com.meowflow: DEBUG
+    org.springframework.test: INFO

@@ -1,0 +1,104 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;color:#2b2b2b}
+.zone{position:absolute;border-radius:14px;z-index:1}
+.zonehead{position:absolute;z-index:2;color:#fff;font-weight:700;font-size:15.5px;display:flex;align-items:center;padding-left:13px;letter-spacing:.5px;border-radius:12px 12px 0 0}
+.box{position:absolute;background:#fff;border:1.5px solid #c9ccd1;border-radius:9px;padding:7px 9px;font-size:12.2px;line-height:1.5;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.box .bt{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.box.dash{border-style:dashed;background:#fcfcfc}
+.box .ln{padding-left:2px}
+.hb{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:800;color:#37474f;background:#fff}
+.ah{position:absolute;left:0;width:'+W+'px;text-align:center;z-index:4;font-weight:700;color:#fff}
+svg{position:absolute;left:0;top:0;width:'+W+'px;height:'+H+'px;z-index:5;pointer-events:none}
+.ph{position:absolute;border-radius:8px;color:#fff;text-align:center;padding:5px 3px;font-size:12px;line-height:1.35;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ph b{display:block;font-size:13.5px}
+.life{position:absolute;border-left:1.5px dashed #c3c9cf;z-index:1}
+.msg{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e5e9;border-radius:9px;font-size:11.8px;padding:1px 6px;text-align:center;z-index:4;box-shadow:0 1px 2px rgba(0,0,0,.07);white-space:nowrap}
+.num{position:absolute;width:19px;height:19px;border-radius:50%;background:#455a64;color:#fff;font-size:11.5px;text-align:center;line-height:19px;z-index:6;font-weight:700}
+.leg{position:absolute;font-size:12.6px;line-height:19px;color:#333}
+.leg b.n{display:inline-block;width:26px;color:#455a64}
+</style></head><body><div style="position:relative;width:'+W+'px;height:'+H+'px">
+<div style="position:absolute;left:0;top:12px;width:2100px;text-align:center"><div style="font-size:28px;font-weight:800;color:#263238">② RAG 知识库检索增强 —— 独立全景图</div><div style="font-size:13.5px;color:#777;margin-top:3px">入库管线(解析→分块→向量化→双写) + 存储(PGVector/表) + 检索通道(向量/关键词/混合+RRF) + 工作流节点/REST 集成（据 meowflow-infra）</div></div>
+<div class="zone" data-name="z1" style="left:40px;top:150px;width:1230px;height:376px;background:#f1f8f1;border:2px solid #43a047"></div>
+<div class="zonehead" data-name="z1H" style="left:40px;top:150px;width:1230px;height:30px;background:#43a047">入库管线（写入侧）</div>
+<div class="zone" data-name="z2" style="left:1290px;top:150px;width:750px;height:376px;background:#f1f8f1;border:2px solid #43a047"></div>
+<div class="zonehead" data-name="z2H" style="left:1290px;top:150px;width:750px;height:30px;background:#43a047">存储层</div>
+<div class="zone" data-name="z3" style="left:40px;top:560px;width:1000px;height:360px;background:#f1f8f1;border:2px solid #43a047"></div>
+<div class="zonehead" data-name="z3H" style="left:40px;top:560px;width:1000px;height:30px;background:#43a047">检索通道 search</div>
+<div class="zone" data-name="z4" style="left:1060px;top:560px;width:980px;height:360px;background:#f1f8f1;border:2px solid #43a047"></div>
+<div class="zonehead" data-name="z4H" style="left:1060px;top:560px;width:980px;height:30px;background:#43a047">后处理与服务出口</div>
+<div class="zone" data-name="z5" style="left:40px;top:950px;width:2000px;height:272px;background:#f1f8f1;border:2px solid #43a047"></div>
+<div class="zonehead" data-name="z5H" style="left:40px;top:950px;width:2000px;height:30px;background:#43a047">集成：知识库节点 + REST 管理</div>
+<div class="box " data-name="A1" style="left:54px;top:196px;width:580px;height:130px"><span class="bt">上传入口 KnowledgeService</span><div class="ln">KnowledgeController: KB CRUD/upload</div><div class="ln">uploadDocument: 校验 kb active</div><div class="ln">→ Document(status=pending) 插入</div><div class="ln">processDocument() @Transactional</div><div class="ln">失败 → status=failed + errorMessage</div></div>
+<div class="box " data-name="A3" style="left:654px;top:196px;width:600px;height:130px"><span class="bt">Embedding 客户端</span><div class="ln">EmbeddingClient 接口: embed/embedBatch</div><div class="ln">getModelName · getDimension(默认1536)</div><div class="ln">OpenAI 兼容实现 → 阿里 DashScope 端点</div><div class="ln">/services/embeddings/embedding-creation</div><div class="ln">EmbeddingConfig @ConditionalOnMissingBean</div></div>
+<div class="box " data-name="A2" style="left:54px;top:330px;width:580px;height:172px"><span class="bt">解析分块 DocumentParser</span><div class="ln">extractText 按 content-type</div><div class="ln">text/markdown 直通 · html 正则去标签</div><div class="ln">json 去括号 · pdf 当前占位</div><div class="ln">splitText 按句子[。！？；\n]+ 分块</div><div class="ln">chunkSize=500 · chunkOverlap=50</div><div class="ln">estimateTokenCount = len/4</div></div>
+<div class="box " data-name="A4" style="left:654px;top:330px;width:600px;height:172px"><span class="bt">向量化 + 双写（每 chunk）</span><div class="ln">chunkMapper.insert(mf_chunk)</div><div class="ln">content/chunkIndex/tokenCount</div><div class="ln">vectorKey = "docId:index" · metadata json</div><div class="ln">vectorStore.insert(VectorEntry)</div><div class="ln">collection = kb_{kbId}</div><div class="ln">Document → completed + chunkCount</div></div>
+<div class="box " data-name="S1" style="left:1304px;top:196px;width:722px;height:150px"><span class="bt">PGVectorStore（向量表）</span><div class="ln">vector_store(collection_name, vector_key,</div><div class="ln">vector REAL[], metadata jsonb, created_at)</div><div class="ln">UNIQUE(collection_name, vector_key) · UPSERT</div><div class="ln">B-tree(collection) · ivfflat 能力探测</div><div class="ln">(需 pgvector 镜像 + vector(N) 迁移 · 代码注释明示)</div></div>
+<div class="box " data-name="S2" style="left:1304px;top:362px;width:722px;height:150px"><span class="bt">业务表（PostgreSQL）</span><div class="ln">mf_knowledge_base: name/desc/vector_store_type</div><div class="ln">dimension(1536)/status(active)</div><div class="ln">mf_document: title/content/content_type</div><div class="ln">status/chunk_count/error_message</div><div class="ln">mf_chunk: doc_id/content/chunk_index/token_count/vector_key/metadata</div></div>
+<div class="box " data-name="R1" style="left:54px;top:606px;width:460px;height:140px"><span class="bt">SearchChannel 接口</span><div class="ln">search(query, kbId, topK) → List<SearchResult></div><div class="ln">SearchResult(chunkId, documentId,</div><div class="ln">content, score, metadata)</div><div class="ln">getChannelName · getWeight()</div></div>
+<div class="box " data-name="R3" style="left:534px;top:606px;width:490px;height:140px"><span class="bt">KeywordSearchChannel(关键词)</span><div class="ln">正则 \\w+ 提取小写关键词</div><div class="ln">content 包含打分 match/keywords</div><div class="ln">weight=0.3 · doKeywordSearch 当前占位(空)</div><div class="ln">供 Hybrid 融合与 RRF 候选</div></div>
+<div class="box " data-name="R2" style="left:54px;top:764px;width:460px;height:142px"><span class="bt">VectorSearchChannel(向量)</span><div class="ln">query → EmbeddingClient.embed</div><div class="ln">vectorStore.search(topK, filter)</div><div class="ln">filter: kbId/documentId/tags</div><div class="ln">余弦 1-(v<=>q) 相似度评分</div></div>
+<div class="box " data-name="R4" style="left:534px;top:764px;width:490px;height:142px"><span class="bt">HybridSearchChannel(混合)</span><div class="ln">vector 取 topK*2 × 0.7</div><div class="ln">keyword 取 topK*2 × 0.3</div><div class="ln">按 chunkId-documentId 归并加权</div><div class="ln">降序取 topK 返回</div></div>
+<div class="box " data-name="P1" style="left:1074px;top:606px;width:450px;height:300px"><span class="bt">SearchPostProcessor</span><div class="ln">deduplicate(同 chunk 保留高分)</div><div class="ln">filterByScore(minScore)</div><div class="ln">rrfReRank(多路列表, k=60)</div><div class="ln">groupByDocument · limitPerDocument(topN)</div><div class="ln">buildContext(results, maxLength)</div><div class="ln">→ 拼装 "---" 分隔的上下文片段</div></div>
+<div class="box " data-name="P2" style="left:1544px;top:606px;width:480px;height:300px"><span class="bt">SearchService(出口门面)</span><div class="ln">search = hybrid(默认)</div><div class="ln">vectorSearch · keywordSearch</div><div class="ln">searchWithRerank = vector+keyword RRF</div><div class="ln">buildSearchContext(query,kb,topK,maxLen)</div><div class="ln">deduplicateResults/filterByScore</div><div class="ln">供知识节点/LLM 上下文使用</div></div>
+<div class="box " data-name="I1" style="left:54px;top:996px;width:980px;height:210px"><span class="bt">知识库检索节点 KnowledgeSearchExecutor</span><div class="ln">参数: knowledgeBaseId(必填) · query(${} 变量解析)</div><div class="ln">topK=5 · similarityThreshold=0.7</div><div class="ln">mode = hybrid | vector | keyword</div><div class="ln">doSearch 按 mode 调 SearchService · 阈值过滤</div><div class="ln">输出: {query, knowledgeBaseId, results[],</div><div class="ln">totalResults, topK, searchMode, threshold}</div><div class="ln">异常 → NodeException(带节点上下文)</div></div>
+<div class="box " data-name="I2" style="left:1054px;top:996px;width:980px;height:210px"><span class="bt">REST 管理 KnowledgeController</span><div class="ln">/api/infra/knowledge*: KB 增删改查/上传/删除</div><div class="ln">createKnowledgeBase: vectorStoreType/dimension</div><div class="ln">pgvector → createCollection(kb_{id})</div><div class="ln">deleteKnowledgeBase: 级联删 document+chunk+向量</div><div class="ln">删除文档同步删 chunk 与 vector_store</div><div class="ln">查询: 文档列表/分块列表/单块详情</div></div>
+<div class="ah" style="top:104px;height:28px;background:#43a047">架构视图</div>
+<div class="ah" style="top:1240px;height:28px;background:#546e7a">核心时序 ② —— 入库(写) 与 检索(读) 两条链路（编号箭头，底部说明）</div>
+<div class="ph" style="left:55px;top:1300px;width:210px;height:64px;background:#546e7a"><b>前端 / 上游节点</b>上传·提问·LLM 上下文</div>
+<div class="life" style="left:160px;top:1358px;height:700px"></div>
+<div class="ph" style="left:325px;top:1300px;width:190px;height:64px;background:#43a047"><b>KnowledgeController</b>REST 入口</div>
+<div class="life" style="left:420px;top:1358px;height:700px"></div>
+<div class="ph" style="left:605px;top:1300px;width:190px;height:64px;background:#43a047"><b>KnowledgeService</b>入库/管理</div>
+<div class="life" style="left:700px;top:1358px;height:700px"></div>
+<div class="ph" style="left:885px;top:1300px;width:190px;height:64px;background:#66bb6a"><b>DocumentParser</b>分块</div>
+<div class="life" style="left:980px;top:1358px;height:700px"></div>
+<div class="ph" style="left:1165px;top:1300px;width:190px;height:64px;background:#66bb6a"><b>EmbeddingClient</b>向量化</div>
+<div class="life" style="left:1260px;top:1358px;height:700px"></div>
+<div class="ph" style="left:1435px;top:1300px;width:210px;height:64px;background:#2e7d32"><b>PGVectorStore / 表</b>chunk+vector 双写/查询</div>
+<div class="life" style="left:1540px;top:1358px;height:700px"></div>
+<div class="ph" style="left:1730px;top:1300px;width:200px;height:64px;background:#43a047"><b>SearchService+通道</b>检索/后处理</div>
+<div class="life" style="left:1830px;top:1358px;height:700px"></div>
+<div class="msg" style="left:290px;top:1396px">1. 上传文档/建库</div>
+<div class="num" style="left:149px;top:1386px">1</div>
+<div class="msg" style="left:560px;top:1443px">2. upload → process</div>
+<div class="num" style="left:409px;top:1433px">2</div>
+<div class="msg" style="left:1120px;top:1490px">3. Document(pending)</div>
+<div class="num" style="left:689px;top:1480px">3</div>
+<div class="msg" style="left:840px;top:1537px">4. parseAndChunk</div>
+<div class="num" style="left:689px;top:1527px">4</div>
+<div class="msg" style="left:980px;top:1584px">5. embed 每块</div>
+<div class="num" style="left:689px;top:1574px">5</div>
+<div class="msg" style="left:1120px;top:1631px">6. 双写 chunk+向量</div>
+<div class="num" style="left:689px;top:1621px">6</div>
+<div class="msg" style="left:1120px;top:1678px">7. 置 completed</div>
+<div class="num" style="left:689px;top:1668px">7</div>
+<div class="msg" style="left:995px;top:1725px">8. 发起检索</div>
+<div class="num" style="left:149px;top:1715px">8</div>
+<div class="msg" style="left:1992px;top:1772px">9. 向量通道</div>
+<div class="num" style="left:1851px;top:1762px">9</div>
+<div class="msg" style="left:1685px;top:1819px">10. 向量查询</div>
+<div class="num" style="left:1819px;top:1809px">10</div>
+<div class="msg" style="left:1992px;top:1866px">11. keyword+融合</div>
+<div class="num" style="left:1851px;top:1856px">11</div>
+<div class="msg" style="left:1992px;top:1913px">12. 后处理</div>
+<div class="num" style="left:1851px;top:1903px">12</div>
+<div class="msg" style="left:995px;top:1960px">13. results/context</div>
+<div class="num" style="left:1819px;top:1950px">13</div>
+<svg viewBox="0 0 2100 2340"><defs><marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#455a64"/></marker><marker id="ard" markerWidth="10" markerHeight="10" refX="7.5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#78909c"/></marker><path d="M 930 502 L 930 558" fill="none" stroke="#43a047" stroke-width="1.8" stroke-dasharray="6,5" marker-end="url(#ard)"/><path d="M 544 1206 L 544 1238" fill="none" stroke="#43a047" stroke-width="1.8" stroke-dasharray="6,5" marker-end="url(#ard)"/><path d="M 2044 502 L 2044 1238" fill="none" stroke="#43a047" stroke-width="1.8" stroke-dasharray="6,5" marker-end="url(#ard)"/><path d="M 160 1396 L 420 1396" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 420 1443 L 700 1443" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 700 1490 L 1540 1490" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 700 1537 L 980 1537" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 700 1584 L 1260 1584" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 700 1631 L 1540 1631" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 700 1678 L 1540 1678" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 160 1725 L 1830 1725" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1856 1772 L 1930 1772" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1830 1819 L 1540 1819" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1856 1866 L 1930 1866" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1856 1913 L 1930 1913" fill="none" stroke="#455a64" stroke-width="1.7"  marker-end="url(#ar)"/><path d="M 1830 1960 L 160 1960" fill="none" stroke="#78909c" stroke-width="1.7" stroke-dasharray="5,4" marker-end="url(#ard)"/></svg>
+<div style="position:absolute;left:40px;top:2040px;width:2020px;height:230px;border:1.5px solid #d0d3d8;border-radius:12px;background:#fafbfc"></div>
+<div style="position:absolute;left:58px;top:2050px;font-size:14.5px;font-weight:800;color:#37474f">核心时序步骤说明（实线=调用/请求，虚线=返回/响应）</div>
+<div class="leg" style="left:58px;top:2074px;width:986px"><b class="n">1.</b> 上传文档或创建知识库</div>
+<div class="leg" style="left:1050px;top:2074px;width:986px"><b class="n">2.</b> Controller → Service 校验</div>
+<div class="leg" style="left:58px;top:2096px;width:986px"><b class="n">3.</b> 写 Document(pending)</div>
+<div class="leg" style="left:1050px;top:2096px;width:986px"><b class="n">4.</b> 解析+分块(500/50)</div>
+<div class="leg" style="left:58px;top:2118px;width:986px"><b class="n">5.</b> 逐块向量化(1536 维)</div>
+<div class="leg" style="left:1050px;top:2118px;width:986px"><b class="n">6.</b> chunk 表与向量表双写</div>
+<div class="leg" style="left:58px;top:2140px;width:986px"><b class="n">7.</b> 置 completed + chunkCount</div>
+<div class="leg" style="left:1050px;top:2140px;width:986px"><b class="n">8.</b> 发起混合检索</div>
+<div class="leg" style="left:58px;top:2162px;width:986px"><b class="n">9.</b> 向量通道: embed+召回</div>
+<div class="leg" style="left:1050px;top:2162px;width:986px"><b class="n">10.</b> PGVector 余弦查询+过滤</div>
+<div class="leg" style="left:58px;top:2184px;width:986px"><b class="n">11.</b> 关键词通道+加权融合</div>
+<div class="leg" style="left:1050px;top:2184px;width:986px"><b class="n">12.</b> 去重/阈值/RRF/拼上下文</div>
+<div class="leg" style="left:58px;top:2206px;width:986px"><b class="n">13.</b> 结果注入 LLM prompt</div>
+</div></body></html>

@@ -1,0 +1,47 @@
+[
+  {
+    "resource": "meowflow-workflow",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 200,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 50
+  },
+  {
+    "resource": "meowflow-executor",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 100,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 30
+  },
+  {
+    "resource": "meowflow-user",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 200,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 50
+  },
+  {
+    "resource": "meowflow-template",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 100,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 30
+  },
+  {
+    "resource": "meowflow-monitor",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 50,
+    "intervalSec": 1,
+    "controlBehavior": 0,
+    "burst": 20
+  }
+]

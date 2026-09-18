@@ -1,0 +1,17 @@
+# 生产环境配置
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: true
+        server-addr: ${NACOS_HOST:nacos}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:prod}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        enabled: true
+        namespace: ${NACOS_NAMESPACE:prod}
+
+logging:
+  level:
+    root: WARN
+    com.meowflow: INFO

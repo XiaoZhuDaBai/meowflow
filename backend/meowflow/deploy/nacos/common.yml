@@ -1,0 +1,101 @@
+# ============================================================
+# MeowFlow 公共配置（推送到 Nacos 配置中心）
+# Data ID: common.yml, Group: COMMON_GROUP
+# ============================================================
+
+spring:
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 10
+          max-wait: 5000ms
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+# Sa-Token 配置
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: 86400
+  is-share: false
+  token-style: uuid
+
+# Sentinel 配置
+sentinel:
+  dashboard: ${SENTINEL_DASHBOARD:sentinel-dashboard:8858}
+  transport:
+    port: 8719
+    dashboard: ${SENTINEL_DASHBOARD:sentinel-dashboard:8858}
+  filter:
+    enabled: true
+  datasource:
+    flow:
+      nacos:
+        server-addr: ${NACOS_HOST:nacos}:${NACOS_PORT:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        data-id: ${spring.application.name}-flow-rules
+        group-id: SENTINEL_GROUP
+        rule-type: flow
+        data-type: json
+
+# Resilience4j 熔断配置
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 5s
+
+# Feign 配置
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+  circuitbreaker:
+    enabled: true
+  httpclient:
+    enabled: true
+
+# 监控
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+# 日志
+logging:
+  level:
+    root: INFO
+    com.meowflow: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"

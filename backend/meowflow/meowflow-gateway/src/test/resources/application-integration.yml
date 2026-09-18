@@ -1,0 +1,16 @@
+# meowflow-gateway 集成测试配置 (真实环境)
+# 使用方式: @ActiveProfiles("integration")
+# 需要: 至少 Redis 已启动
+
+spring:
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+logging:
+  level:
+    com.meowflow: DEBUG
+    org.springframework.test: INFO

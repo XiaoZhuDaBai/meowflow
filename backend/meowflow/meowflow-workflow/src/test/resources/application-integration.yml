@@ -1,0 +1,76 @@
+# 集成测试配置 - 需要完整的服务环境 (PostgreSQL, Redis)
+# 使用方式: @ActiveProfiles("integration")
+
+spring:
+  datasource:
+    # 使用真实 PostgreSQL (不是 _test 后缀)
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:meowflow}
+    username: ${POSTGRES_USER:meowflow}
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:false}
+
+# Mock 外部服务 - 集成测试使用真实调用
+meowflow:
+  ai:
+    mock: false
+  notification:
+    mock: false
+  mcp:
+    mock: false
+
+# 工作流配置 (与生产完全一致)
+workflow:
+  engine:
+    max-concurrent-executions: 20
+    node-timeout-seconds: 300
+    retry-max-attempts: 3
+    executor-pool-core-size: 10
+    executor-pool-max-size: 20
+  version:
+    auto-increment: true
+    max-per-workflow: 100
+
+logging:
+  level:
+    com.meowflow: DEBUG
+    org.springframework.test: INFO
+    org.springframework.jdbc: DEBUG
+    org.flywaydb: INFO

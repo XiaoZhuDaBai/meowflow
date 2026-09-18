@@ -1,0 +1,21 @@
+# 开发环境配置
+spring:
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+# 开发环境执行器配置
+meowflow:
+  mq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+  executor:
+    distributed-mode: false
+
+logging:
+  level:
+    com.meowflow.executor.mq: DEBUG

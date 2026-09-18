@@ -1,0 +1,124 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fff;font-family:'Microsoft YaHei','PingFang SC','Segoe UI',sans-serif;color:#2b2b2b}
+.zone{position:absolute;border-radius:16px;z-index:1}
+.zonehead{position:absolute;border-radius:12px 12px 0 0;z-index:2;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;padding-left:14px;letter-spacing:1px}
+.box{position:absolute;background:#fff;border:1.5px solid #c9ccd1;border-radius:10px;padding:9px 11px;font-size:12.6px;line-height:1.52;z-index:3;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.box b.t{display:block;font-size:13.4px;margin-bottom:3px}
+.box.dash{border-style:dashed;background:#fcfcfc}
+.lbl{position:absolute;font-size:12px;color:#555;z-index:3}
+svg{position:absolute;left:0;top:0;width:2080px;height:1460px;z-index:5;pointer-events:none}
+</style></head><body>
+
+<div style="position:relative;width:2080px;height:1460px">
+
+<div style="position:absolute;left:0;top:8px;width:2080px;text-align:center">
+ <div style="font-size:30px;font-weight:800;color:#263238">喵流 MeowFlow · 四系统总体架构图</div>
+ <div style="font-size:14px;color:#777;margin-top:4px">工作流编排引擎 × RAG 检索增强 × 多模型管理 × Agent 系统 —— 据后端源码整理（2026-09 · backend/meowflow）</div>
+</div>
+
+<!-- 图例 -->
+<div class="zone" style="left:1620px;top:12px;width:440px;height:110px;background:#fff;border:1.5px solid #d0d3d8;z-index:0"></div>
+<div style="position:absolute;left:1636px;top:20px;font-size:13.5px;font-weight:700;color:#333">图例</div>
+<div style="position:absolute;left:1636px;top:44px;font-size:12.5px;line-height:1.7">
+ <span style="display:inline-block;width:14px;height:14px;background:#fff3e0;border:1.5px solid #ef6c00;border-radius:3px;vertical-align:-2px"></span> ① 工作流编排引擎
+ <span style="display:inline-block;width:14px;height:14px;background:#f1f8f1;border:1.5px solid #43a047;border-radius:3px;vertical-align:-2px;margin-left:14px"></span> ② RAG
+ <span style="display:inline-block;width:14px;height:14px;background:#f9f2fd;border:1.5px solid #8e24aa;border-radius:3px;vertical-align:-2px;margin-left:14px"></span> ③ 多模型管理<br>
+ <span style="display:inline-block;width:14px;height:14px;background:#f0f6ff;border:1.5px solid #1e88e5;border-radius:3px;vertical-align:-2px"></span> ④ Agent
+ <span style="display:inline-block;width:24px;height:0;border-top:2px dashed #8a8f98;vertical-align:-4px;margin:0 4px"></span> 规划/占位/未接线
+ <span style="display:inline-block;width:26px;height:0;border-top:2px solid #616161;vertical-align:-4px;margin:0 4px"></span> 调用/数据流
+</div>
+
+<!-- 顶部接入层 -->
+<div class="box" data-name="前端" style="left:30px;top:130px;width:310px;height:92px"><b class="t">前端 Vue3 · meowflow-ui</b>可视化编辑器(AntV G6)· 运行/调试(SSE) · 执行监控/成本 · Chatflow 对话 · 模板市场</div>
+<div class="box" data-name="网关" style="left:370px;top:130px;width:330px;height:92px"><b class="t">网关 meowflow-gateway(服务)</b>Spring Cloud Gateway · 路由/鉴权 · Sentinel 流控 · Nacos 注册发现（开发可直连服务）</div>
+<div class="box" data-name="外部入口" style="left:730px;top:130px;width:440px;height:92px"><b class="t">外部触发 / 集成入口</b>Webhook(签名校验) · Cron 定时 · 表单 · IM 消息(钉钉/企微/飞书) · 插件触发 · 人工审批(HumanTask)</div>
+<div class="box dash" data-name="AI向导" style="left:1200px;top:130px;width:390px;height:92px"><b class="t">AI 生成 / 导入</b>NL→工作流生成(产品规划) · DifyWorkflowImporter(Dify DSL) · 模板市场一键使用(meowflow-template)</div>
+
+<!-- 服务进程容器 -->
+<div class="zone" style="left:20px;top:230px;width:2040px;height:1018px;background:#f4f6f8;border:2px solid #455a64;z-index:0"></div>
+<div style="position:absolute;left:40px;top:238px;font-size:14px;font-weight:700;color:#37474f;z-index:2">meowflow-workflow 服务进程 —— 内嵌 meowflow-infra(库模块，Spring Boot 自动装配) · 单容器内完成编排+AI 能力</div>
+
+<!-- ① 引擎 zone -->
+<div class="zone" data-name="z1引擎" style="left:35px;top:268px;width:2000px;height:392px;background:#fff7ef;border:2px solid #ef6c00"></div>
+<div class="zonehead" data-name="h1" style="left:35px;top:268px;width:2000px;height:36px;background:#ef6c00">① 工作流编排引擎 —— engine / executor / trigger / event（workflow 服务核心）</div>
+
+<!-- 引擎内部 boxes -->
+<div class="box" data-name="E1入口" style="left:50px;top:316px;width:350px;height:120px"><b class="t">入口与触发 ExecutionService / Controller</b>ExecutionController · ChatflowController · Webhook/Cron/Message/Form<br>触发后：建 Execution(pending)→ sync 直跑 或 自代理 @Async(workflowExecutorPool) 异步</div>
+<div class="box" data-name="E2内核" style="left:420px;top:316px;width:940px;height:120px"><b class="t">WorkflowEngine 调度内核（就绪队列驱动，非纯拓扑批次）</b>
+① DAGSorter 拓扑 + dagCache(workflowId:version) ② 就绪节点 batch≤64 并行(CompletableFuture)
+③ EdgeRouter 边路由(DEFAULT/CONDITION_TRUE_FALSE/ERROR) · JOIN 策略 ALL/ANY/N_OF_M
+④ 单节点: orTimeout 超时 · 重试≤10(退避500ms) · 兜底值 fallbackValue · CancellationToken 取消(50ms轮询)</div>
+<div class="box" data-name="E3循环" style="left:1380px;top:316px;width:330px;height:120px"><b class="t">LoopSubgraphDriver 循环</b>LOOP=子图执行器：内嵌/引用子图 → 子作用域 ExecutionContext 重执行<br>LoopCursor 迭代状态(可快照) · 退出 completed/max_iterations/max_duration/loop_exit</div>
+<div class="box" data-name="E4横切" style="left:1730px;top:316px;width:290px;height:120px"><b class="t">运行时横切</b>RunEventSink→RedisStream(node 事件/流式 delta) · NodeExecutionRecorder/Execution 持久化 · Micrometer 指标 · CancellationRegistry</div>
+
+<div class="box" data-name="E5注册" style="left:50px;top:448px;width:930px;height:112px"><b class="t">NodeRegistry —— NodeExecutor 自动注册(EnumMap)</b>trigger 6 · llm/classify/extract/summarize/agent/param/question · condition/if/switch/branch · fork/join · loop/wait · http/db/code/transform/notify/human/subworkflow/document/tool · end/answer/set-variable/aggregator · NOTE</div>
+<div class="box" data-name="E5b自足" style="left:1000px;top:448px;width:470px;height:112px"><b class="t">自足执行器（不依赖 infra）</b>CodeExecutor · HttpExecutor · DatabaseExecutor · Condition 表达式求值 · Transform/ListOperator · Wait · SubWorkflow · Notify(经 IntegrationService)</div>
+<div class="box dash" data-name="E6分布式" style="left:1490px;top:448px;width:530px;height:112px"><b class="t">meowflow-executor（分布式·可选，虚线）</b>TaskProducer → RabbitMQ(手动ACK) · DLQ 死信 · 延迟重试(x-delay) · 节点 worker 注册/负载均衡 —— 单体时由引擎内直接执行</div>
+
+<!-- 引擎桥接 chips -->
+<div class="box" data-name="chipRAG" style="left:190px;top:566px;width:350px;height:88px"><b class="t">KnowledgeSearch 节点</b>kbId/query(变量)/topK=5/阈值0.7/mode=hybrid → SearchService</div>
+<div class="box" data-name="chipMODEL" style="left:870px;top:566px;width:350px;height:88px"><b class="t">LLM / AI 类节点</b>LLM·Classify·Extract·Summarize·Agent… → ChatModelGateway.complete/stream(带 token)</div>
+<div class="box" data-name="chipAGENT" style="left:1520px;top:566px;width:350px;height:88px"><b class="t">AgentExecutor / ToolExecutor</b>工具调用循环 → MCPToolService.executeTool</div>
+
+<!-- ② RAG zone -->
+<div class="zone" data-name="z2RAG" style="left:45px;top:660px;width:645px;height:560px;background:#f1f8f1;border:2px solid #43a047"></div>
+<div class="zonehead" data-name="h2" style="left:45px;top:660px;width:645px;height:36px;background:#43a047">② RAG 知识库检索增强 —— infra.knowledge/search/vector/embedding</div>
+<div class="box" data-name="K1入库" style="left:60px;top:712px;width:295px;height:186px"><b class="t">入库管线 KnowledgeService</b>uploadDocument → processDocument：<br>DocumentParser 按句分块(500/50, token≈len/4) → EmbeddingClient(阿里兼容/OpenAI, 1536维) → 双写 chunk + 向量<br>状态: pending→processing→completed/failed</div>
+<div class="box" data-name="K3检索" style="left:380px;top:712px;width:295px;height:186px"><b class="t">检索通道 SearchChannel</b>VectorSearchChannel(embed→向量) · KeywordSearchChannel(正则提词·当前占位) · HybridSearchChannel(0.7/0.3 加权融合, topK*2 召回)</div>
+<div class="box" data-name="K2数据" style="left:60px;top:910px;width:295px;height:108px"><b class="t">数据模型(PostgreSQL)</b>mf_knowledge_base · mf_document · mf_chunk(vectorKey=docId:idx, metadata jsonb)</div>
+<div class="box" data-name="K4后处理" style="left:380px;top:910px;width:295px;height:108px"><b class="t">SearchPostProcessor</b>去重 · score 阈值过滤 · RRF 重排(k=60) · 每文档限 topN · buildContext 拼上下文(maxLength)</div>
+<div class="box" data-name="K5向量" style="left:60px;top:1032px;width:615px;height:170px"><b class="t">向量存储 PGVectorStore + 出口</b>vector_store(collection_name, vector_key, vector REAL[], metadata jsonb) · 余弦 1-(v&lt;=&gt;q) · 按 kb/document/tags 过滤<br>ivfflat/hnsw 需 pgvector 镜像与 vector(N) 迁移（代码注释明示待办）<br>出口: SearchService.search/vectorSearch/keywordSearch/searchWithRerank/buildSearchContext → 供 KnowledgeSearch 节点与 /api/infra/knowledge*</div>
+
+<!-- ③ 多模型 zone -->
+<div class="zone" data-name="z3模型" style="left:720px;top:660px;width:645px;height:560px;background:#f9f2fd;border:2px solid #8e24aa"></div>
+<div class="zonehead" data-name="h3" style="left:720px;top:660px;width:645px;height:36px;background:#8e24aa">③ 多模型管理 —— infra.chat / router / service（运行时 + 管理面）</div>
+<div class="box" data-name="M1路由" style="left:736px;top:712px;width:290px;height:196px"><b class="t">运行时路由（节点实际使用）</b>ChatModelGateway 门面(支持 CancellationToken)<br>ChatModelRouter：AIProvider 内置模型表/前缀匹配 → 具体 ChatClient<br>per-provider CircuitBreaker(aiCircuitBreakerRegistry) · ModelHealthStore(Redis, 连续3次失败熔断/半开 1/3 探测)</div>
+<div class="box" data-name="M3管理" style="left:1046px;top:712px;width:290px;height:196px"><b class="t">管理面 DB 模型市场 mf_ai_model</b>AIModelService/Controller：CRUD/启停/设默认/sortOrder · apiKey/apiSecret 字段级 @Encrypted · capabilities/价格<br><span style="color:#b26a00">虚线说明：REST 已就绪，尚未动态注册进运行时路由（testConnection 为占位）</span></div>
+<div class="box" data-name="M2客户端" style="left:736px;top:924px;width:290px;height:160px"><b class="t">Provider 客户端</b>新 chat/：OpenAI·Claude(@ConditionalOnProperty meowflow.ai.*)<br>旧 client/：Ali·Baidu·Anthropic → ModelRouter/ChatClientFactory（两代并存）</div>
+<div class="box" data-name="M4成本" style="left:1046px;top:924px;width:290px;height:160px"><b class="t">成本与日志</b>AIInvokeLogService(@Async 落库) · AICostCalculator · AICallLoggingAspect · MonitorFeignClient 推送 monitor</div>
+<div class="box" data-name="M56配置REST" style="left:736px;top:1096px;width:600px;height:120px"><b class="t">配置 与 REST 出口</b>meowflow.ai.{openai,anthropic}.{enabled,api-key,base-url} · router.primary/fallback-models · UnifiedCircuitBreakerConfig：aiCircuitBreakerRegistry 全 AI 组件共用<br>/api/infra/chat(chat·stream·models·health) · /api/infra/model*(DB 管理 · /enabled 节点下拉)</div>
+
+
+<!-- ④ Agent zone -->
+<div class="zone" data-name="z4Agent" style="left:1395px;top:660px;width:625px;height:560px;background:#f0f6ff;border:2px solid #1e88e5"></div>
+<div class="zonehead" data-name="h4" style="left:1395px;top:660px;width:625px;height:36px;background:#1e88e5">④ Agent 系统 —— Agent 节点 + Chatflow + MCP 工具 + 原语</div>
+<div class="box" data-name="A1节点" style="left:1410px;top:712px;width:290px;height:186px"><b class="t">Agent 节点 AgentExecutor</b>策略 function-calling(原生 tools/tool_choice/tool_calls) 或 JSON ReAct(action:tool|final) · 循环≤maxIterations(默认5) · 工具异常不中断<br>输出 text/answer/toolOutputs[]/reasoning[]</div>
+<div class="box" data-name="A3MCP" style="left:1720px;top:712px;width:290px;height:186px"><b class="t">MCP 工具层</b>MCPToolRegistry(内存 ConcurrentHashMap, REST 注册 /api/infra/mcp)<br>MCPToolExecutor 按 adapterType → StdioAdapter(本地进程) / SseAdapter(远程 SSE)<br>工具 schema: name/description/parameters/required</div>
+<div class="box" data-name="A2Chatflow" style="left:1410px;top:910px;width:290px;height:108px"><b class="t">Chatflow 会话式助手</b>MessageTrigger 入口 · ChatflowSessionStore(Redis history 多轮) · 上层对话=执行"消息触发"工作流</div>
+<div class="box dash" data-name="A4原语" style="left:1720px;top:910px;width:290px;height:108px"><b class="t">Agent 原语（虚线·尚未接线）</b>IntentClassifier(LLM 意图树+Redis 缓存+置信度0.3) · LLMMcpParameterExtractor(参数抽取/类型转换/必填校验) —— 仅测试引用</div>
+<div class="box" data-name="A5外部" style="left:1410px;top:1032px;width:600px;height:82px"><b class="t">执行外部工具</b>MCP server(stdio 命令 / sse 端点) · 通知/HTTP 等集成 · 工具结果回填 LLM 直至 final → 供下游总结/回答节点消费</div>
+<div class="box" data-name="A6REST" style="left:1410px;top:1124px;width:600px;height:90px"><b class="t">REST / 会话出口</b>/api/workflow/chatflow/{id}/chat · HumanInput 审批 · ExecutionStream(SSE 运行事件) · 会话 Redis: chatflow:session:*</div>
+
+<!-- 存储层 -->
+<div style="position:absolute;left:40px;top:1276px;font-size:14px;font-weight:700;color:#37474f;z-index:2">存储与外部依赖（部署：PostgreSQL+Redis+RabbitMQ，可 Nacos/Sentinel 治理）</div>
+<div class="box" data-name="S1PG" style="left:30px;top:1300px;width:360px;height:130px"><b class="t">PostgreSQL</b>mf_workflow/version · mf_execution / mf_node_execution · mf_knowledge_base / mf_document / mf_chunk · mf_ai_model / mf_integration_config · mf_wf_node_definition</div>
+<div class="box" data-name="S2PGV" style="left:410px;top:1300px;width:250px;height:130px"><b class="t">PGVector</b>vector_store：REAL[] + metadata jsonb · cosine ≤&gt; · 集合 kb_{id}（ann 索引待 pgvector 镜像）</div>
+<div class="box" data-name="S3Redis" style="left:680px;top:1300px;width:300px;height:130px"><b class="t">Redis</b>chatflow:session:* 会话 · meowflow:model:* 健康态 · RedisStream 运行事件 · wf:schedule:* 定时 · 幂等/限流</div>
+<div class="box" data-name="S4MQ" style="left:1000px;top:1300px;width:280px;height:130px"><b class="t">RabbitMQ(可选)</b>meowflow.task.queue · DLQ 死信 · delayed(插件) · 手动 ACK + 重试指数退避 —— executor 分布式节点任务</div>
+<div class="box" data-name="S5外部" style="left:1300px;top:1300px;width:390px;height:130px"><b class="t">外部 API / 渠道</b>LLM HTTP：OpenAI / Claude / 阿里 / 百度 · Embedding · MCP stdio/sse · 通知：钉钉/企微/飞书/邮件/短信</div>
+<div class="box" data-name="S6治理" style="left:1710px;top:1300px;width:320px;height:130px"><b class="t">治理(可关)</b>Nacos 注册/配置 · Sentinel 流控熔断(网关+服务) · Resilience4j 统一熔断 · Micrometer→监控</div>
+
+<!-- SVG 连线 -->
+<svg viewBox="0 0 2080 1460">
+ <defs>
+  <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#455a64"/></marker>
+  <marker id="arg" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#43a047"/></marker>
+  <marker id="arp" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#8e24aa"/></marker>
+  <marker id="arb" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#1e88e5"/></marker>
+ </defs>
+ <!-- 顶部：调用进入引擎 -->
+ <path d="M185,222 L185,266" stroke="#455a64" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+ <path d="M535,222 L535,266" stroke="#455a64" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+ <path d="M950,222 L950,266" stroke="#455a64" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+ <!-- 引擎 → infra 三大 zone -->
+ <path d="M365,654 L365,668" stroke="#43a047" stroke-width="2.5" fill="none" marker-end="url(#arg)"/>
+ <path d="M1045,654 L1045,668" stroke="#8e24aa" stroke-width="2.5" fill="none" marker-end="url(#arp)"/>
+ <path d="M1695,654 L1695,668" stroke="#1e88e5" stroke-width="2.5" fill="none" marker-end="url(#arb)"/>
+ <!-- infra → 存储 -->
+ <path d="M365,1220 L365,1298" stroke="#9e9e9e" stroke-width="1.6" stroke-dasharray="5,4" fill="none" marker-end="url(#ar)"/>
+ <path d="M1045,1220 L1045,1298" stroke="#9e9e9e" stroke-width="1.6" stroke-dasharray="5,4" fill="none" marker-end="url(#ar)"/>
+ <path d="M1695,1220 L1695,1298" stroke="#9e9e9e" stroke-width="1.6" stroke-dasharray="5,4" fill="none" marker-end="url(#ar)"/>
+</svg>
+
+</div></body></html>

@@ -1,0 +1,13 @@
+# Spring Boot 3 Auto Configuration for MeowFlow Common Module
+# https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.external-config
+
+com.meowflow.common.config.CommonAutoConfig
+com.meowflow.common.config.AsyncConfig
+com.meowflow.common.config.CryptoConfig
+com.meowflow.common.config.JacksonConfig
+com.meowflow.common.config.MybatisPlusConfig
+com.meowflow.common.config.RedisConfig
+com.meowflow.common.config.Resilience4jConfig
+com.meowflow.common.config.ThreadPoolConfig
+com.meowflow.common.config.TtlConfig
+com.meowflow.common.config.UnifiedCircuitBreakerConfig

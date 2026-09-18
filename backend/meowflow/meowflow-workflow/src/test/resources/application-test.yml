@@ -1,0 +1,78 @@
+spring:
+  datasource:
+    # 使用 PostgreSQL (真实环境数据库)
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:meowflow}_test
+    username: ${POSTGRES_USER:meowflow}
+    password: ${POSTGRES_PASSWORD:meowflow123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    hibernate:
+      # 使用 create-drop 与 Flyway 配合，Flyway 失败时让 JPA 创建表
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        # 使用 PostgreSQL 方言 (与生产一致)
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    # 尝试启用 Flyway，如果没有脚本目录则回退
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: false
+    # 如果没有迁移脚本目录，设置一个空位置
+    locations: classpath:db/migration,classpath:db/migration/workflow
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+          max-wait: -1ms
+  cloud:
+    nacos:
+      discovery:
+        enabled: ${NACOS_ENABLED:false}
+        server-addr: ${NACOS_HOST:localhost}:${NACOS_PORT:8848}
+      config:
+        enabled: ${NACOS_CONFIG_ENABLED:false}
+
+# 真实调用外部服务 (mock 关闭)
+meowflow:
+  ai:
+    mock: false
+  notification:
+    mock: false
+  mcp:
+    mock: false
+
+# 工作流配置 (与生产一致)
+workflow:
+  engine:
+    max-concurrent-executions: 5
+    node-timeout-seconds: 60
+    retry-max-attempts: 1
+    executor-pool-core-size: 2
+    executor-pool-max-size: 4
+  version:
+    auto-increment: true
+    max-per-workflow: 10
+
+logging:
+  level:
+    com.meowflow: DEBUG
+    org.springframework.test: INFO
+    org.springframework.jdbc: DEBUG
+    org.flywaydb: INFO

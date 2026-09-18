@@ -1,0 +1,34 @@
+# AI Chat Configuration
+# AI 聊天配置
+
+meowflow:
+  ai:
+    # OpenAI 配置
+    openai:
+      enabled: true
+      api-key: ${OPENAI_API_KEY:}
+      base-url: https://api.openai.com/v1
+
+    # Anthropic Claude 配置
+    anthropic:
+      enabled: true
+      api-key: ${ANTHROPIC_API_KEY:}
+      base-url: https://api.anthropic.com
+
+    # 模型路由配置
+    router:
+      primary: gpt-4o
+      fallback: gpt-4o-mini
+      # 降级策略：按优先级尝试
+      fallback-models:
+        - gpt-4o
+        - gpt-4o-mini
+        - claude-3-5-sonnet-20240620
+
+    # 熔断器配置
+    circuit-breaker:
+      enabled: true
+      failure-rate-threshold: 50
+      wait-duration-in-open-state: 30s
+      sliding-window-size: 10
+      minimum-number-of-calls: 5

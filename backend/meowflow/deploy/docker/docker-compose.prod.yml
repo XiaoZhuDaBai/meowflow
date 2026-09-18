@@ -1,0 +1,377 @@
+version: '3.8'
+
+services:
+  # Nacos 服务发现 + 配置中心
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: meowflow-nacos
+    environment:
+      MODE: standalone
+      JVM_XMS: 512m
+      JVM_XMX: 512m
+      JVM_XMN: 256m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    volumes:
+      - nacos_data:/home/nacos/data
+      - nacos_logs:/home/nacos/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+  # Sentinel Dashboard
+  sentinel-dashboard:
+    image: bladex/sentinel-dashboard:1.8.6
+    container_name: meowflow-sentinel
+    ports:
+      - "8858:8858"
+    environment:
+      - AUTH_USERNAME=sentinel
+      - AUTH_PASSWORD=sentinel
+    networks:
+      - meowflow-network
+
+  # PostgreSQL
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: meowflow-postgres
+    environment:
+      POSTGRES_DB: meowflow
+      POSTGRES_USER: meowflow
+      POSTGRES_PASSWORD: meowflow123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meowflow -d meowflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meowflow-network
+
+
+  # Redis 7
+  redis:
+    image: redis:7-alpine
+    container_name: meowflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meowflow-network
+
+  # RabbitMQ 3.12 with delayed-message-exchange plugin
+  rabbitmq:
+    build:
+      context: .
+      dockerfile: RabbitMQ.Dockerfile
+    container_name: meowflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - meowflow-network
+
+  # MinIO
+  minio:
+    image: minio/minio:latest
+    container_name: meowflow-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - meowflow-network
+
+  # ========== 微服务（使用统一 Dockerfile，通过 SERVICE_NAME 区分） ==========
+
+  # 统一网关（端口 8080）
+  meowflow-gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-gateway
+    image: meowflow/meowflow-gateway:latest
+    container_name: meowflow-gateway
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SENTINEL_DASHBOARD: sentinel-dashboard:8858
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms512m -Xmx1g -XX:+UseG1GC
+    ports:
+      - "8080:8080"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - meowflow-network
+
+  # 用户服务（端口 8081）
+  meowflow-user:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-user
+    image: meowflow/meowflow-user:latest
+    container_name: meowflow-user
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms256m -Xmx512m
+    ports:
+      - "8081:8081"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+  # 工作流服务（端口 8082）
+  meowflow-workflow:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-workflow
+    image: meowflow/meowflow-workflow:latest
+    container_name: meowflow-workflow
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms512m -Xmx1g
+    ports:
+      - "8082:8082"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+  # 执行器服务（端口 8083）
+  meowflow-executor:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-executor
+    image: meowflow/meowflow-executor:latest
+    container_name: meowflow-executor
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms512m -Xmx2g
+    ports:
+      - "8083:8083"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+  # 模板服务（端口 8084）
+  meowflow-template:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-template
+    image: meowflow/meowflow-template:latest
+    container_name: meowflow-template
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms256m -Xmx512m
+    ports:
+      - "8084:8084"
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+  # 监控服务（端口 8085）
+  meowflow-monitor:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-monitor
+    image: meowflow/meowflow-monitor:latest
+    container_name: meowflow-monitor
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms256m -Xmx512m
+    ports:
+      - "8085:8085"
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+  # AI 基础设施（端口 8086）
+  meowflow-infra:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE_NAME: meowflow-infra
+    image: meowflow/meowflow-infra:latest
+    container_name: meowflow-infra
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: -Xms256m -Xmx512m
+    depends_on:
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - meowflow-network
+
+volumes:
+  nacos_data:
+    driver: local
+  nacos_logs:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  meowflow-network:
+    driver: bridge
