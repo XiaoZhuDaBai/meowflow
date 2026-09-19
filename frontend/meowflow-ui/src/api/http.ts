@@ -41,6 +41,45 @@ const http: AxiosInstance = axios.create({
 });
 
 // =============================================================================
+// 业务错误提示
+// =============================================================================
+
+/**
+ * 把后端返回的业务错误码映射成用户可读的提示。
+ *
+ * <p>后端有两种失败表达方式：
+ * - HTTP 4xx/5xx（走响应拦截器的 error 分支）
+ * - **HTTP 200 + 响应体里的 code !== 200**（业务错误，走 success 分支）
+ *
+ * 两处都必须调用本函数，否则后一种情况的 message 会被丢掉 —— 表现就是
+ * 接口明明返回了"验证码错误或已过期"，页面上却什么都不提示
+ * （登录接口校验验证码失败时正是这条路径）。
+ */
+function notifyBusinessError(code: number, message?: string): void {
+  const msg = message || '操作失败';
+  if (code === ErrorCode.FORBIDDEN) {
+    ElMessage.error('没有权限访问该资源');
+  } else if (
+    code === ErrorCode.NOT_FOUND ||
+    code === ErrorCode.USER_NOT_FOUND ||
+    code === ErrorCode.DATA_NOT_FOUND ||
+    code === ErrorCode.WORKFLOW_NOT_FOUND
+  ) {
+    ElMessage.error('资源不存在');
+  } else if (code === ErrorCode.RATE_LIMITED) {
+    ElMessage.warning('请求过于频繁，请稍后再试');
+  } else if (code === ErrorCode.CIRCUIT_BREAKER_OPEN) {
+    ElMessage.warning('服务熔断中，请稍后重试');
+  } else if (code === ErrorCode.ACCOUNT_LOCKED) {
+    ElMessage.error('账号已被锁定，请联系管理员');
+  } else {
+    // 其余业务错误（含 CAPTCHA_INVALID / EMAIL_CODE_INVALID / 参数校验等）
+    // 直接显示后端消息，后端文案已经是面向用户的。
+    ElMessage.error(msg);
+  }
+}
+
+// =============================================================================
 // Token 刷新队列
 // =============================================================================
 
@@ -157,13 +196,23 @@ http.interceptors.request.use(
 http.interceptors.response.use(
   (response: AxiosResponse) => {
     const envelope = response.data;
+    // 后端统一信封：成功是 { code, message, data, timestamp, traceId, success }，
+    // 而**失败响应里没有 data 字段**（只有 code/message/timestamp/traceId/success）。
+    // 因此这里只能用 code 判断是不是信封 —— 曾经的判断条件带了 `'data' in envelope`，
+    // 导致所有业务错误都不匹配：既不提示消息、也不 reject，
+    // 调用方拿到的是原始信封而不是数据（读 data 全是 undefined）。
     if (
       envelope &&
       typeof envelope === 'object' &&
-      typeof envelope.code === 'number' &&
-      'data' in envelope
+      typeof envelope.code === 'number'
     ) {
       if (envelope.code !== 200) {
+        // 认证类错误交给下面的 error 分支去刷新 / 跳登录，这里只负责其余业务错误的提示。
+        // 注意：CAPTCHA_INVALID(1005) 等不属于认证错误，绝不能触发跳登录，
+        // 否则用户在登录页输错验证码就会被反复重定向。
+        if (!isAuthError(envelope.code)) {
+          notifyBusinessError(envelope.code, envelope.message);
+        }
         const err = new AxiosError(
           envelope.message || '请求失败',
           'ERR_BAD_RESPONSE',
@@ -193,25 +242,8 @@ http.interceptors.response.use(
     }
 
     if (businessCode !== undefined) {
-      if (businessCode === ErrorCode.FORBIDDEN) {
-        ElMessage.error('没有权限访问该资源');
-      } else if (
-        businessCode === ErrorCode.NOT_FOUND ||
-        businessCode === ErrorCode.USER_NOT_FOUND ||
-        businessCode === ErrorCode.DATA_NOT_FOUND ||
-        businessCode === ErrorCode.WORKFLOW_NOT_FOUND
-      ) {
-        ElMessage.error('资源不存在');
-      } else if (businessCode === ErrorCode.RATE_LIMITED) {
-        ElMessage.warning('请求过于频繁，请稍后再试');
-      } else if (businessCode === ErrorCode.CIRCUIT_BREAKER_OPEN) {
-        ElMessage.warning('服务熔断中，请稍后重试');
-      } else if (businessCode === ErrorCode.ACCOUNT_LOCKED) {
-        ElMessage.error('账号已被锁定，请联系管理员');
-      } else if (businessCode !== ErrorCode.SUCCESS) {
-        // 通用业务错误：直接显示后端返回的消息
-        const msg = businessMessage || '操作失败';
-        ElMessage.error(msg);
+      if (businessCode !== ErrorCode.SUCCESS) {
+        notifyBusinessError(businessCode, businessMessage);
       }
     } else if (status && status >= 500) {
       ElMessage.error('服务器异常，请稍后再试');

@@ -170,6 +170,13 @@ async function onLogin() {
     }
     const redirect = (route.query.redirect as string) || '/workflows';
     router.replace(redirect);
+  } catch {
+    // 业务错误提示由 http 拦截器统一弹出（后端 200 + code!=200 的情况也在那里处理），
+    // 这里只需兜住 rejection，避免变成未处理的 Promise 异常；
+    // 登录失败时顺带刷新验证码（验证码用过即失效，不刷新会连续失败）。
+    if (!isMockMode) {
+      await refreshCaptcha().catch(() => undefined);
+    }
   } finally {
     loading.value = false;
   }
