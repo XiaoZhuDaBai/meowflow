@@ -143,12 +143,15 @@ class WorkflowServiceTest {
     void delete_shouldSoftDeleteWorkflow() {
         Workflow workflow = createTestWorkflow(1L, "Test Workflow");
         when(workflowRepository.selectById(1L)).thenReturn(workflow);
-        when(workflowRepository.updateById(any(Workflow.class))).thenReturn(1);
+        when(workflowRepository.deleteById(1L)).thenReturn(1);
 
         workflowService.delete(1L);
 
-        assertTrue(workflow.getDeleted());
-        verify(workflowRepository).updateById(workflow);
+        // 必须走 deleteById（触发逻辑删除）。
+        // 之前断言的是 updateById，而全局 logic-delete-field 会让 updateById 把
+        // deleted 排除出 SET 子句，结果接口报成功、数据却没删——测试反而把这个 bug 固化了。
+        verify(workflowRepository).deleteById(1L);
+        verify(workflowRepository, never()).updateById(any(Workflow.class));
     }
 
     @Test

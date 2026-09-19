@@ -148,11 +148,14 @@ class WorkflowServiceUnitTest {
     void delete_existing_marksAsDeleted() {
         Workflow existing = createWorkflow(1L);
         when(workflowRepository.selectById(1L)).thenReturn(existing);
+        when(workflowRepository.deleteById(1L)).thenReturn(1);
 
         workflowService.delete(1L);
 
-        assertThat(existing.getDeleted()).isTrue();
-        verify(workflowRepository).updateById(existing);
+        // 必须走 deleteById 才会真正写入逻辑删除标记；
+        // updateById 会被全局 logic-delete-field 排除掉 deleted 列，等于没删。
+        verify(workflowRepository).deleteById(1L);
+        verify(workflowRepository, never()).updateById(any(Workflow.class));
     }
 
     @Test

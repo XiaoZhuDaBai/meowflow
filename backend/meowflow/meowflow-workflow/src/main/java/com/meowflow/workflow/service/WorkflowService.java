@@ -126,8 +126,12 @@ public class WorkflowService {
         if (workflow == null) {
             throw new BizException(ResultCode.DATA_NOT_FOUND, "工作流不存在");
         }
-        workflow.setDeleted(true);
-        workflowRepository.updateById(workflow);
+        // 必须用 deleteById 触发逻辑删除。
+        // 全局配置 logic-delete-field=deleted 会让 MyBatis-Plus 把该字段排除出
+        // updateById 的 SET 子句，所以 setDeleted(true) + updateById 生成的 SQL 是
+        // "UPDATE ... SET name=?, ... WHERE id=? AND deleted=false" —— 接口返回成功，
+        // 但 deleted 一直是 false，工作流根本没被删掉。
+        workflowRepository.deleteById(id);
     }
 
     public WorkflowResponse getById(Long id) {
