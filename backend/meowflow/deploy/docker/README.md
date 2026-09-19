@@ -29,8 +29,17 @@ docker-compose -f docker-compose.dev.yml up -d
 > **首次启动会执行以下操作：**
 > 1. 构建自定义 RabbitMQ 镜像（约1-2分钟）
 > 2. 拉取 Nacos、PostgreSQL、Redis、MinIO 等基础镜像
-> 3. 初始化 PostgreSQL 数据库（执行 `init-postgres.sh`）
+> 3. 初始化 PostgreSQL（`init-postgres.sh`：创建扩展与授权）
 > 4. 启动所有服务并等待健康检查
+>
+> **数据库表结构与种子数据不在这里创建**，而是由应用启动时的 **Flyway 迁移**
+> 自动完成（脚本位于 `meowflow-common/src/main/resources/db/migration`）。
+> 因此首次启动微服务时日志会看到 `Migrating schema "public" to version ...`。
+>
+> 注意：**不要**再把 `scripts/sql/init.sql` 挂到 `/docker-entrypoint-initdb.d/`。
+> 它由 `db/migration/V*.sql` 拼接生成，内容与 Flyway 迁移重叠；两者并存会
+> 出现「init.sql 已建表 → Flyway 认为库为空 → 重跑 V1 → relation already exists」
+> 的冲突，导致服务启动失败。
 
 ### 3. 验证服务状态
 
@@ -46,8 +55,10 @@ meowflow-postgres   Up (healthy)   0.0.0.0:5432->5432/tcp
 meowflow-rabbitmq   Up (healthy)   0.0.0.0:5672->5672/tcp, 0.0.0.0:15672->15672/tcp
 meowflow-redis      Up (healthy)   0.0.0.0:6379->6379/tcp
 meowflow-minio      Up (healthy)   0.0.0.0:9000->9000/tcp, 0.0.0.0:9001->9001/tcp
-meowflow-app        Up (healthy)   0.0.0.0:8080->8080/tcp
 ```
+
+> 本 compose 只包含基础设施。微服务需另行启动（见根目录 README 的「安装部署」），
+> 其中 `meowflow-app` 服务默认是注释状态。
 
 ---
 

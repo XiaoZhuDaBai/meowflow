@@ -14,8 +14,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # 同 docker-compose.dev.yml：不要挂载 scripts/sql/init.sql。
+      # 它与 db/migration/V*.sql 内容重叠（建表 + 种子数据），会与应用启动时的
+      # Flyway 迁移冲突（relation "mf_sys_org" already exists），导致服务起不来。
+      # schema 与种子数据统一由 Flyway 负责。
       - ./init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
-      - ../../scripts/sql/init.sql:/docker-entrypoint-initdb.d/zz-meowflow-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meowflow -d meowflow"]
       interval: 10s

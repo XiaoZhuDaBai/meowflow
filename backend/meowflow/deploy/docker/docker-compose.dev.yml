@@ -14,8 +14,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # 这里只跑扩展/权限初始化。
+      #
+      # 不要再挂载 scripts/sql/init.sql —— 它是 db/migration/V*.sql 的「拼接产物」
+      # （建表 + 种子数据），而应用启动时 Flyway 会执行同一批迁移。
+      # 两者并存会冲突：init.sql 先把表建好，Flyway 却因没有 flyway_schema_history
+      # 而认为库是空的，于是重跑 V1 并报
+      #   ERROR: relation "mf_sys_org" already exists
+      # 导致所有服务启动失败。
+      #
+      # 现在 schema 与种子数据统一由 Flyway 负责（single source of truth）：
+      #   meowflow-common/src/main/resources/db/migration/
+      # scripts/sql/init.sql 仅供手工初始化 / 离线场景参考。
       - ./init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
-      - ../../scripts/sql/init.sql:/docker-entrypoint-initdb.d/zz-meowflow-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meowflow -d meowflow"]
       interval: 10s
