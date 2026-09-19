@@ -85,6 +85,41 @@ VALUES
 docker compose -f backend/meowflow/deploy/docker/docker-compose.dev.yml up -d
 ```
 
+### 脚本约定
+
+仓库里的 `.ps1` 一律保存为 **UTF-8 with BOM**。Windows PowerShell 5.1 读取无 BOM 的
+`.ps1` 时会按系统 ANSI（中文环境为 GBK）解码，脚本里的中文注释会变成乱码并可能连带
+吞掉引号/换行，导致整段解析失败（报 `Missing closing '}'` / `The string is missing the
+terminator`）。这类问题只在 Windows PowerShell 5.1 上出现，`pwsh` 7 无此限制。
+
+新增或修改 `.ps1` 后建议自查一次：
+
+```powershell
+[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\x.ps1), [ref]$null, [ref]$e)
+$e.Count   # 应为 0
+```
+
+另外，Maven 构建（`mvn clean`）无法删除正在被运行中服务占用的 `*-exec.jar`，
+重新构建前请先停止对应服务（`stop-all.ps1`）。
+
+### 资源要求
+
+7 个微服务 + PostgreSQL / Redis / Nacos / RabbitMQ / MinIO 同时运行，建议至少
+**8 GB 可用内存**。`start-all.ps1` 已为每个 Java 进程加上 `-Xms128m -Xmx512m`：
+不加约束时 JVM 会按宿主机总内存推算堆上限（24 GB 机器上单进程可预留数 GB），
+并发启动时容易把内存吃光，最后启动的服务会因分配不到内存而起不来，日志里表现为
+`Failed to start bean 'webServerStartStop'`（真实原因常被日志框架的报错盖住）。
+
+若某个服务启动失败，`start-all.ps1` 会自动重试一次；仍失败时请检查：
+
+```powershell
+# 看是否有残留进程占着端口
+Get-NetTCPConnection -LocalPort 8080 -State Listen
+
+# 看该服务的真实启动错误
+Get-Content backend/meowflow/logs/gateway-error.log -Tail 40
+```
+
 ## 技术栈
 
 ### 后端
@@ -175,7 +210,7 @@ psql -d meowflow -f reset.sql    # 清空业务表(仅本地)
 ## 测试
 
 ```bash
-# 后端：单元 + 集成测试（需要 PostgreSQL / Redis）
+# 后端：单元 + 集成测试（需要 PostgreSQL / Redis，空库即可，Flyway 会自动建表）
 cd backend/meowflow
 mvn test
 
@@ -192,8 +227,25 @@ npm run test
 npm run build
 ```
 
+### 端到端校验
+
+服务全部起来后（`backend/meowflow/start-all.ps1` + 前端 `npm run dev`），可跑一次真实链路校验：
+
+```powershell
+# 仓库根目录：基础设施 -> 服务健康 -> Nacos 注册 -> 前端代理 -> 业务链路
+./verify-e2e.ps1
+
+# 只跑业务链路（登录 -> 创建工作流 -> 保存版本 -> 发布 -> 执行 -> 用模板创建）
+cd frontend/meowflow-ui
+npm run test:e2e
+```
+
+`verify-e2e.ps1` 需要 Docker、Node.js，以及在运行的 7 个后端服务；
+它会自动创建并清理测试工作流，可安全重复执行。
+
 CI 配置见 [.github/workflows/ci.yml](./.github/workflows/ci.yml)：
 `backend`（PG + Redis service）、`frontend`、`package` 三个 job。
+端到端校验需要完整服务栈，未纳入 CI，请按上面步骤在本地执行。
 
 ## 文档
 

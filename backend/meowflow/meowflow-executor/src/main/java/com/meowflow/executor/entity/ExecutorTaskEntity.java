@@ -27,8 +27,15 @@ public class ExecutorTaskEntity implements Serializable {
 
     private Integer priority;
 
+    /**
+     * 对应 mf_exe_task.input（jsonb）。必须显式声明 TypeHandler，
+     * 否则 jsonb 列无法绑定 Java Map，写入时报 "is of type jsonb but expression is of type character varying"。
+     */
+    @TableField(value = "input", typeHandler = com.meowflow.common.mybatis.JsonbMapTypeHandler.class)
     private Map<String, Object> input;
 
+    /** 对应 mf_exe_task.output（jsonb），同 input。 */
+    @TableField(value = "output", typeHandler = com.meowflow.common.mybatis.JsonbMapTypeHandler.class)
     private Map<String, Object> output;
 
     private String errorMessage;

@@ -43,6 +43,11 @@ public class ExecutorNodeEntity implements Serializable {
 
     private Long failedTasks;
 
+    /**
+     * 对应 mf_exe_executor_node.tags（jsonb）。必须显式声明 TypeHandler，
+     * 否则 jsonb 列无法绑定 Java Map，写入时报类型不匹配。
+     */
+    @TableField(value = "tags", typeHandler = com.meowflow.common.mybatis.JsonbMapTypeHandler.class)
     private Map<String, Object> tags;
 
     private LocalDateTime createTime;

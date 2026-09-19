@@ -40,6 +40,12 @@ public class Workflow implements Serializable {
 
     private Boolean isPublic;
 
+    /**
+     * 标签，对应 mf_wf_workflow.tags（jsonb）。
+     * 必须显式声明 TypeHandler：jsonb 列无法直接绑定 Java List，
+     * 否则创建/更新工作流会报 "column tags is of type jsonb but expression is of type character varying"（前端表现为 500）。
+     */
+    @TableField(value = "tags", typeHandler = com.meowflow.common.mybatis.JsonbListTypeHandler.class)
     private List<String> tags;
 
     private Long statTotalRun;

@@ -10,15 +10,18 @@
 
 `backend/meowflow/scripts/sql/init.sql`
 
-`init.sql` 由 V1–V20 迁移按顺序生成，不要手工修改。修改 migration 后运行：`pwsh scripts/sql/generate-init.ps1`。
+`init.sql` 由 `db/migration` 下的 `V*.sql` 按版本顺序生成（当前至 V22），不要手工修改。修改 migration 后在 `backend/meowflow` 目录运行：`pwsh scripts/sql/generate-init.ps1`。
 
 ## Docker 初始化
 
-`docker-compose.dev.yml` 和 `docker-compose.full.yml` 会将 `init.sql` 挂载为：
+**schema 由 Flyway 在服务启动时创建**，这是唯一来源。
 
-`/docker-entrypoint-initdb.d/zz-meowflow-init.sql`
+`docker-compose.dev.yml` / `docker-compose.full.yml` 早期版本会把 `init.sql` 挂载为
+`/docker-entrypoint-initdb.d/zz-meowflow-init.sql`，让 PostgreSQL 首次建卷时执行。这样做会和
+Flyway 争抢同一套表结构，报 `relation "mf_sys_org" already exists` 导致服务起不来，
+该挂载已移除，`init.sql` 现在只作为阅读与手工排查用途。
 
-PostgreSQL 数据卷首次创建时会自动执行。已存在的数据卷不会自动重建，需执行迁移或清库重建。
+因此：**新建空库直接启动服务即可**，不需要先手工跑 `init.sql`。
 
 ## 本地重置
 

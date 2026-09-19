@@ -140,20 +140,44 @@ public class KnowledgeController {
 
     @GetMapping("/documents/{id}/download")
     @Operation(summary = "下载原文件", description = "下载文档的原始文件（如果已归档）")
-    public org.springframework.http.ResponseEntity<Void> downloadDocument(@PathVariable Long id) {
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> downloadDocument(@PathVariable Long id) {
         DocumentEntity doc = knowledgeService.getDocument(id);
-        if (doc == null || doc.getFilePath() == null) {
+        if (doc == null || doc.getFilePath() == null || doc.getFilePath().isBlank()) {
             return org.springframework.http.ResponseEntity.notFound().build();
         }
 
+        String filePath = doc.getFilePath();
+
+        // MinIO 模式：重定向到预签名 URL，由浏览器直接从对象存储下载
+        if (fileStorageService.isMinioMode()) {
+            try {
+                String downloadUrl = fileStorageService.getDownloadUrl(filePath);
+                return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
+                        .location(java.net.URI.create(downloadUrl))
+                        .build();
+            } catch (Exception e) {
+                log.error("Generate download URL failed for document id={}", id, e);
+                return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+        }
+
+        // 本地模式：没有可重定向的地址，直接回传文件内容
         try {
-            String downloadUrl = fileStorageService.getDownloadUrl(doc.getFilePath());
-            return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
-                    .location(java.net.URI.create(downloadUrl))
-                    .build();
+            org.springframework.core.io.InputStreamResource resource =
+                    new org.springframework.core.io.InputStreamResource(fileStorageService.openLocalStream(filePath));
+            // 归档文件名是 UUID（不含原始文件名），用文档标题 + 原扩展名作为下载名
+            String extension = filePath.contains(".") ? filePath.substring(filePath.lastIndexOf(".")) : "";
+            String downloadName = String.valueOf(doc.getId()) + extension;
+            return org.springframework.http.ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                            org.springframework.http.ContentDisposition.attachment()
+                                    .filename(downloadName, java.nio.charset.StandardCharsets.UTF_8)
+                                    .build().toString())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                    .body(resource);
         } catch (Exception e) {
-            log.error("Generate download URL failed for document id={}", id, e);
-            return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("Read archived file failed for document id={}, filePath={}", id, filePath, e);
+            return org.springframework.http.ResponseEntity.notFound().build();
         }
     }
 

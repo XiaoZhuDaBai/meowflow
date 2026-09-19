@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 # 从 canonical migrations 生成 scripts/sql/init.sql
 
 $ErrorActionPreference = 'Stop'
